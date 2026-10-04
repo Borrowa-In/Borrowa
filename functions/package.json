@@ -1,0 +1,13 @@
+{
+  "name": "borrowa-functions",
+  "private": true,
+  "engines": { "node": "22" },
+  "main": "index.js",
+  "scripts": {
+    "sync-points": "node -e \"const fs=require('fs');const s=fs.readFileSync('../public/js/points.js','utf8');const n=[...s.matchAll(/export (?:const|function) (\\w+)/g)].map(m=>m[1]);fs.writeFileSync('points.js','// GENERATED from ../public/js/points.js by npm run sync-points. Do not edit by hand.\\n'+s.replace(/export (const|function)/g,'$1')+'\\nmodule.exports = { '+n.join(', ')+' };\\n')\""
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  }
+}

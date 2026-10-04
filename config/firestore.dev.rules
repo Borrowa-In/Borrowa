@@ -1,0 +1,558 @@
+// ===== DEV / EMULATOR RULES ONLY — NEVER DEPLOY. Generated from firestore.rules. =====
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Rules can't import js/firebase-config.js, so this literal can't be
+    // fully unified with the client's ADMIN_EMAIL constant the way the JS
+    // files now are (auth.js / admin.js / admin-dashboard.js all import
+    // ADMIN_EMAIL from firebase-config.js instead of hardcoding it).
+    // This is the ONLY place in these rules the email is spelled out —
+    // every other check below calls isPermanentAdminEmail(...) or isAdmin()
+    // instead of repeating the string, so changing the admin account only
+    // means editing it here AND in firebase-config.js's ADMIN_EMAIL.
+    function isPermanentAdminEmail(email) {
+      return email == 'shouryaupadhyay50@gmail.com';
+    }
+
+    // Helper function to check if the current user is an admin
+    function isAdmin() {
+      return request.auth != null && (
+        isPermanentAdminEmail(request.auth.token.email) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    // Is this uid the permanent admin? Looked up from the private email record.
+    function isPermanentAdminUid(uid) {
+      return exists(/databases/$(database)/documents/userPrivate/$(uid)) &&
+        isPermanentAdminEmail(get(/databases/$(database)/documents/userPrivate/$(uid)).data.email);
+    }
+
+    // New-account limit: during its first 24 hours an account may post at most 3 listings.
+    // The client writes the listing and a counter (postCounts/{uid}) in ONE batch; the
+    // listing rule uses getAfter() to check the counter went up by exactly 1 and is <= 3.
+    // Accounts older than 24h (or legacy accounts with no createdAt) are not limited.
+    // Tester accounts: created on the admin's "unlimited device" (a devices/{id} doc flagged
+    // unlimited, which only an admin can set). They skip email verification and the new-account
+    // post cap. Anyone else can't get a testers doc: the create rule below checks the flag.
+    function isTester() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/testers/$(request.auth.uid));
+    }
+    function isNewAccount() {
+      let created = get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('createdAt', null);
+      return created != null && request.time < created + duration.value(24, 'h');
+    }
+    function newAccountPostOk() { return true; } // DEV ONLY
+
+    // ---------- itemPhotos/{itemId}: the photo lives apart from the listing ----------
+    // Browse only loads the small listing docs; the photo is fetched when someone
+    // opens a listing's details. Written in the same batch as the listing.
+    match /itemPhotos/{id} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create, update: if request.auth != null && !isBanned() && isVerified() &&
+        request.resource.data.keys().hasOnly(['ownerId', 'data']) &&
+        request.resource.data.ownerId == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/items/$(id)).data.userId == request.auth.uid &&
+        request.resource.data.data is string && request.resource.data.data.size() < 90000 &&
+        request.resource.data.data.matches('^data:image/(jpeg|webp);base64,[A-Za-z0-9+/=]+$');
+      allow delete: if request.auth != null && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+
+    // ---------- postCounts/{uid}: listings posted by an account (cannot be reset by the owner) ----------
+    match /postCounts/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['n']) && request.resource.data.n == 1;
+      allow update: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['n']) && request.resource.data.n == resource.data.n + 1;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- devices/{id}: up to 2 accounts per device, bannable by admins ----------
+    match /devices/{deviceId} {
+      allow get: if request.auth != null;
+      allow list: if isAdmin();
+      allow create: if request.auth != null && deviceId.size() <= 64 && (
+        (request.resource.data.keys().hasOnly(['uids', 'banned', 'createdAt', 'emails']) &&
+          request.resource.data.uids == [request.auth.uid] &&
+          request.resource.data.banned == false &&
+          request.resource.data.get('emails', {}).keys().hasOnly([request.auth.uid]) &&
+          request.resource.data.get('emails', {}).get(request.auth.uid, request.auth.token.email.lower()) == request.auth.token.email.lower()) ||
+        (isAdmin() && request.resource.data.keys().hasOnly(['uids', 'banned', 'createdAt', 'unlimited'])));
+      // The device list also keeps each account's email (devices/{id}.emails[uid]) so the
+      // "this device is full, delete one" dialog can show them. A member may only add, fill in
+      // or remove THEIR OWN entry.
+      allow update: if request.auth != null && (
+        isAdmin() ||
+        // join the device (the cap of 2 does not apply to the admin's unlimited device)
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uids', 'emails']) &&
+          resource.data.banned == false &&
+          request.resource.data.uids.size() == resource.data.uids.size() + 1 &&
+          (resource.data.get('unlimited', false) == true || request.resource.data.uids.size() <= 2) &&
+          request.resource.data.uids.hasAll(resource.data.uids) &&
+          request.auth.uid in request.resource.data.uids &&
+          request.resource.data.get('emails', {}).diff(resource.data.get('emails', {})).affectedKeys().hasOnly([request.auth.uid]) &&
+          request.resource.data.get('emails', {}).get(request.auth.uid, '') == request.auth.token.email.lower()) ||
+        // already on the device: fill in own email
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emails']) &&
+          resource.data.banned == false &&
+          request.auth.uid in resource.data.uids &&
+          request.resource.data.get('emails', {}).diff(resource.data.get('emails', {})).affectedKeys().hasOnly([request.auth.uid]) &&
+          request.resource.data.get('emails', {}).get(request.auth.uid, '') == request.auth.token.email.lower()) ||
+        // leave the device (account deletion): remove only own uid and own email
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uids', 'emails']) &&
+          request.auth.uid in resource.data.uids &&
+          request.resource.data.uids.size() == resource.data.uids.size() - 1 &&
+          !(request.auth.uid in request.resource.data.uids) &&
+          resource.data.uids.hasAll(request.resource.data.uids) &&
+          request.resource.data.get('emails', {}).diff(resource.data.get('emails', {})).affectedKeys().hasOnly([request.auth.uid]) &&
+          !(request.auth.uid in request.resource.data.get('emails', {}))));
+      allow delete: if isAdmin();
+    }
+
+    // ---------- testers/{uid}: accounts made on the admin's unlimited device ----------
+    match /testers/{uid} {
+      allow get: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['deviceId']) &&
+        request.resource.data.deviceId is string && request.resource.data.deviceId.size() <= 64 &&
+        get(/databases/$(database)/documents/devices/$(request.resource.data.deviceId)).data.get('unlimited', false) == true;
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == uid);
+    }
+
+    // ---------- emailKeys/{key}: one account per real inbox (Gmail dots/+ ignored) ----------
+    match /emailKeys/{key} {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null && key.size() <= 200 &&
+        request.resource.data.keys().hasOnly(['uid']) && request.resource.data.uid == request.auth.uid;
+      // a member may release their own address when they delete their account
+      allow delete: if isAdmin() || (request.auth != null && resource.data.uid == request.auth.uid && !isBanned());
+    }
+
+    // ---------- userPrivate/{uid}: emails live here, NOT on the public profile ----------
+    match /userPrivate/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['email']) &&
+        request.resource.data.email.lower() == request.auth.token.email.lower();
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (request.auth != null && request.auth.uid == uid && !isBanned());
+    }
+
+    // ---------- users/{userId} ----------
+    // Everyone signed in can read profiles (names shown on the leaderboard,
+    // chat headers, etc). A user can create/update only their OWN document,
+    // and can never touch their own role, email or banned flag. Admins can
+    // manage any user doc, but can never demote or delete the permanent
+    // admin account. Only admins can set the `rank` field (manual tier).
+    // (Leaderboard points are worked out from the items and
+    // borrowRequests collections, so there are no stat counters to guard.)
+    match /users/{userId} {
+      allow read: if request.auth != null;
+
+      // A new profile can only contain these fields, with the caller's own
+      // email, and can never come with a role / ban / rank pre-set.
+      allow create: if request.auth != null && request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['name', 'building', 'createdAt']) &&
+        request.resource.data.name is string && request.resource.data.name.size() <= 60 &&
+        request.resource.data.get('building', '') is string &&
+        request.resource.data.get('building', '').size() <= 60;
+
+      // Members may only edit these harmless fields on their OWN profile.
+      // role / email / banned / rank can only be changed by an admin.
+      allow update: if request.auth != null && (
+        (request.auth.uid == userId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'building', 'publicKey']) &&
+          request.resource.data.name is string && request.resource.data.name.size() <= 60 &&
+          request.resource.data.get('building', '') is string &&
+          request.resource.data.get('building', '').size() <= 60 &&
+          request.resource.data.get('publicKey', '') is string &&
+          request.resource.data.get('publicKey', '').size() <= 200) ||
+        // One-time self-migration: a member may delete the legacy public `email` field.
+        (request.auth.uid == userId && !('email' in request.resource.data) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email'])) ||
+        (isAdmin() &&
+          !(isPermanentAdminUid(userId) &&
+            request.resource.data.get('role', null) != resource.data.get('role', null)))
+      );
+
+      allow delete: if (isAdmin() && !isPermanentAdminUid(userId)) ||
+        (request.auth != null && request.auth.uid == userId && !isBanned() && !isPermanentAdminUid(userId));
+    }
+
+    // ---------- userIps/{uid} ----------
+    // Last known IP of each member. Private: only the member and admins can
+    // read it (it used to sit on the public users document).
+    match /userIps/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create, update: if request.auth != null && request.auth.uid == uid &&
+        request.resource.data.keys().hasOnly(['ip', 'updatedAt']) &&
+        request.resource.data.ip is string && request.resource.data.ip.size() <= 64;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- items/{itemId} ----------
+    // Lent items are readable by anyone (so guests can browse). Only the
+    // lender can create a listing under their own uid, and a banned user
+    // can't list at all. Borrowing updates fields on someone else's listing
+    // (status/claimedBy/quantity/claims), so update is open to any signed-in,
+    // non-banned member — the app's own transaction logic (main.js) enforces
+    // "don't borrow your own item" and "don't over-lend quantity". Only the
+    // lender or an admin can delete.
+    function isBanned() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('banned', false) == true;
+    }
+
+    // Anti-fake-account gate. Lending, borrowing, requesting and offering need a
+    // VERIFIED email address (Firebase sends the link), and "+" aliases such as
+    // me+2@gmail.com are refused so one inbox can't be turned into many
+    // accounts. Admins are exempt (the permanent admin address is not a real inbox).
+    function isVerified() { return request.auth != null; } // DEV ONLY
+
+    function validPhoto(v) {
+      return v == null ||
+        (v is string && v.size() < 700 && v.matches('^https://firebasestorage[.]googleapis[.]com/[^\'"() <>]*$'));
+    }
+
+    // Shape + size checks for every field a lender controls on a listing.
+    function itemFieldsOk(n) {
+      return n.title is string && n.title.size() > 0 && n.title.size() <= 80 &&
+        n.get('description', '') is string && n.get('description', '').size() <= 1000 &&
+        n.pickupLocation is string && n.pickupLocation.size() <= 200 &&
+        n.condition is string && n.condition.size() <= 40 &&
+        n.category is string && n.category.size() <= 30 &&
+        n.get('borrowPeriod', '1 week') is string && n.get('borrowPeriod', '1 week').size() <= 40 &&
+        n.get('quantity', '') is string && n.get('quantity', '').size() <= 40 &&
+        n.quantityUnit is string && n.quantityUnit.size() <= 20 &&
+        n.quantityTotal is int && n.quantityTotal >= 1 && n.quantityTotal <= 10000 &&
+        n.quantityAvailable is int && n.quantityAvailable >= 0 && n.quantityAvailable <= n.quantityTotal &&
+        validPhoto(n.get('photoURL', null)) &&
+        n.get('hasPhoto', false) is bool;
+    }
+
+    // Admin-only post colours: up to four plain #rrggbb values. Only checked
+    // when an admin writes them (see the items create rule below).
+    function validPostStyle(st) {
+      return st is map && st.size() <= 4 &&
+        st.keys().hasOnly(['bg', 'border', 'title', 'text']) &&
+        (!('bg' in st) || (st.bg is string && st.bg.matches('^#[0-9a-fA-F]{6}$'))) &&
+        (!('border' in st) || (st.border is string && st.border.matches('^#[0-9a-fA-F]{6}$'))) &&
+        (!('title' in st) || (st.title is string && st.title.matches('^#[0-9a-fA-F]{6}$'))) &&
+        (!('text' in st) || (st.text is string && st.text.matches('^#[0-9a-fA-F]{6}$')));
+    }
+
+    // The lender confirming a return. `completedBy` is the list of
+    // { uid, at } confirmations that feed leaderboard points. It is
+    // append-only: earlier entries can't be changed or removed, and a single
+    // write can add a limited number. (A made-up entry for someone who never
+    // borrowed is harmless: points need a matching claim too. See js/points.js.)
+    function completedAppendOk(o, n) {
+      let oc = o.get('completedBy', []);
+      return n.completedBy is list &&
+        n.completedBy.size() >= oc.size() &&
+        n.completedBy.size() <= oc.size() + 25 &&
+        n.completedBy.size() <= 500 &&
+        n.completedBy[0:oc.size()] == oc;
+    }
+
+    // The lender editing / re-opening their own listing. They can never touch
+    // `claims` (the borrow history that feeds leaderboard points), `userId`,
+    // `userEmail` or `createdAt`.
+    function itemOwnerEditOk() {
+      let o = resource.data;
+      let n = request.resource.data;
+      return o.userId == request.auth.uid &&
+        n.diff(o).affectedKeys().hasOnly(['title', 'category', 'condition', 'quantityTotal', 'quantityUnit',
+          'quantity', 'pickupLocation', 'description', 'photoURL', 'hasPhoto', 'borrowPeriod', 'quantityAvailable',
+          'status', 'updatedAt', 'claimedBy', 'claimedByName', 'claimedAt', 'completedBy']) &&
+        (!n.diff(o).affectedKeys().hasAny(['completedBy']) || completedAppendOk(o, n)) &&
+        (n.get('claimedBy', null) == null || n.get('claimedBy', null) == o.get('claimedBy', null)) &&
+        n.status in ['available', 'claimed'] &&
+        itemFieldsOk(n);
+    }
+
+    // Someone else borrowing: they may ONLY take units off the listing and
+    // append exactly one claim record in their own name, for exactly the
+    // number of units they took. Existing claims must stay untouched.
+    function itemBorrowOk() {
+      let o = resource.data;
+      let n = request.resource.data;
+      let oc = o.get('claims', []);
+      let oldAvail = o.get('quantityAvailable', n.quantityTotal);
+      return o.userId != request.auth.uid &&
+        n.diff(o).affectedKeys().hasOnly(['quantityTotal', 'quantityAvailable', 'quantityUnit', 'status',
+          'claimedBy', 'claimedByName', 'claimedAt', 'claims']) &&
+        n.quantityTotal == o.get('quantityTotal', n.quantityTotal) &&
+        n.quantityUnit == o.get('quantityUnit', n.quantityUnit) &&
+        o.get('status', 'available') != 'claimed' &&
+        n.claimedBy == request.auth.uid &&
+        n.claimedByName is string && n.claimedByName.size() <= 100 &&
+        n.quantityAvailable is int && n.quantityAvailable >= 0 && n.quantityAvailable < oldAvail &&
+        n.status == (n.quantityAvailable == 0 ? 'claimed' : 'available') &&
+        n.claims.size() == oc.size() + 1 &&
+        n.claims[0:oc.size()] == oc &&
+        n.claims[oc.size()].keys().hasOnly(['uid', 'name', 'amount', 'claimedAt', 'dueAt'])
+        && n.claims[oc.size()].get('dueAt', request.time) is timestamp
+        && n.claims[oc.size()].get('dueAt', request.time) < request.time + duration.value(31, 'd') &&
+        n.claims[oc.size()].uid == request.auth.uid &&
+        n.claims[oc.size()].name is string && n.claims[oc.size()].name.size() <= 100 &&
+        n.claims[oc.size()].claimedAt is timestamp &&
+        n.claims[oc.size()].claimedAt > request.time - duration.value(5, 'm') &&
+        n.claims[oc.size()].claimedAt < request.time + duration.value(5, 'm') &&
+        n.claims[oc.size()].amount == oldAvail - n.quantityAvailable;
+    }
+
+    match /items/{itemId} {
+      allow read: if true;
+
+      allow create: if request.auth != null && !isBanned() && isVerified() && newAccountPostOk() &&
+        request.resource.data.keys().hasOnly(['title', 'category', 'condition', 'quantityTotal', 'quantityUnit',
+          'quantity', 'pickupLocation', 'description', 'photoURL', 'hasPhoto', 'borrowPeriod', 'quantityAvailable',
+          'status', 'userId', 'userName', 'claimedBy', 'claimedByName', 'location', 'createdAt', 'expiresAt',
+          'adminPost', 'postStyle']) &&
+        // The Admin rank and custom colours can only be set by an admin.
+        (!('adminPost' in request.resource.data) || (isAdmin() && request.resource.data.adminPost == true)) &&
+        (!('postStyle' in request.resource.data) || (isAdmin() && request.resource.data.get('adminPost', false) == true &&
+          validPostStyle(request.resource.data.postStyle))) &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.userName is string && request.resource.data.userName.size() <= 60 &&
+        request.resource.data.status == 'available' &&
+        request.resource.data.quantityAvailable == request.resource.data.quantityTotal &&
+        request.resource.data.get('claimedBy', null) == null &&
+        (request.resource.data.get('location', null) == null ||
+          (request.resource.data.location is map && request.resource.data.location.size() <= 4)) &&
+        request.resource.data.category in ['Furniture', 'Electronics', 'Books', 'Clothing', 'Tools', 'Misc'] &&
+        itemFieldsOk(request.resource.data);
+
+      allow update: if request.auth != null && !isBanned() &&
+        (isAdmin() || itemOwnerEditOk() || (isVerified() && itemBorrowOk()));
+
+      allow delete: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ---------- borrowRequests/{reqId} ----------
+    // "I need X" posts from members (requests.html). Readable by everyone so
+    // guests can browse. Only the poster creates one under their own uid,
+    // always starting open with zero offers. The poster may change `status`
+    // (open/fulfilled) and delete it; any other signed-in, non-banned member
+    // may only record ONE offer to lend (offerCount +1 and their own uid
+    // added to offeredBy). Admins can moderate (update/delete) any request.
+    match /borrowRequests/{reqId} {
+      allow read: if true;
+
+      allow create: if request.auth != null && !isBanned() && isVerified() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.offerCount == 0 &&
+        request.resource.data.offeredBy.size() == 0 &&
+        request.resource.data.keys().hasOnly(['userId', 'userName', 'title', 'category', 'details', 'duration',
+          'neededBy', 'building', 'status', 'offerCount', 'offeredBy', 'createdAt']) &&
+        request.resource.data.title is string &&
+        request.resource.data.title.size() > 0 &&
+        request.resource.data.title.size() <= 80 &&
+        request.resource.data.userName is string && request.resource.data.userName.size() <= 60 &&
+        request.resource.data.category is string && request.resource.data.category.size() <= 30 &&
+        request.resource.data.get('details', '') is string && request.resource.data.get('details', '').size() <= 400 &&
+        request.resource.data.duration is string && request.resource.data.duration.size() <= 40 &&
+        request.resource.data.neededBy is string && request.resource.data.neededBy.size() <= 12 &&
+        request.resource.data.building is string && request.resource.data.building.size() <= 60;
+
+      allow update: if request.auth != null && !isBanned() && (
+        isAdmin() ||
+        (resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'fulfilledBy']) &&
+          request.resource.data.status in ['open', 'fulfilled'] &&
+          // Only someone who actually offered can be named as the helper, never yourself.
+          (request.resource.data.get('fulfilledBy', null) == null ||
+            (request.resource.data.status == 'fulfilled' &&
+              request.resource.data.fulfilledBy in resource.data.get('offeredBy', []) &&
+              request.resource.data.fulfilledBy != request.auth.uid))) ||
+        (resource.data.userId != request.auth.uid && isVerified() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['offerCount', 'offeredBy']) &&
+          request.resource.data.offerCount == resource.data.get('offerCount', 0) + 1 &&
+          request.auth.uid in request.resource.data.offeredBy &&
+          !(request.auth.uid in resource.data.get('offeredBy', [])))
+      );
+
+      allow delete: if request.auth != null &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ---------- chats/{chatId} ----------
+    // A chat thread is private to exactly the two people in its
+    // `participants` array (the lender and the borrower). Nobody else
+    // can read, create, or update it. Banned users can't start new chats,
+    // but existing threads stay readable so the other party isn't cut off
+    // mid-conversation.
+    //
+    // BUGFIX: getOrCreateChat() (js/chat.js) always does a getDoc() FIRST
+    // to check whether a thread already exists before creating one. On a
+    // document that doesn't exist yet, `resource` is null, so the old rule
+    // (`request.auth.uid in resource.data.participants`) blew up trying to
+    // read `.data` off null and denied the read outright — which meant the
+    // very first chat between two people could never even be checked for,
+    // let alone created. This is why "starting a chat" appeared broken.
+    // The `resource == null` clause below lets that existence check
+    // through; it can't leak anything because a nonexistent document has
+    // no data to leak.
+    match /chats/{chatId} {
+      allow read: if request.auth != null &&
+        (resource == null || request.auth.uid in resource.data.participants ||
+          (isAdmin() && chatReported(chatId, resource.data.participants)));
+
+      allow create: if request.auth != null && !isBanned() &&
+        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.size() == 2 &&
+        request.resource.data.participants[0] != request.resource.data.participants[1] &&
+        request.resource.data.get('itemTitle', '') is string &&
+        request.resource.data.get('itemTitle', '').size() <= 200;
+
+      // Participants can only bump the last-message preview. They can never
+      // change who is in the chat.
+      allow update: if request.auth != null &&
+        request.auth.uid in resource.data.participants &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['lastMessageCipher', 'lastMessageIv', 'lastMessage', 'lastMessageAt']);
+
+      allow delete: if false;
+
+      // ---------- chats/{chatId}/messages/{messageId} ----------
+      // Only the two chat participants can read or send messages, and a
+      // message's senderId must match whoever is actually signed in.
+      // Banned users can still read history but can't send new messages.
+      // Message bodies are end-to-end encrypted client-side (js/e2ee.js) —
+      // this rule only ever sees ciphertext (`cipher`/`iv` fields), never
+      // plaintext, and doesn't need to know or care about that.
+      match /messages/{messageId} {
+        allow read: if request.auth != null &&
+          (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants ||
+           (isAdmin() && chatReported(chatId, get(/databases/$(database)/documents/chats/$(chatId)).data.participants)));
+
+        allow create: if request.auth != null && !isBanned() &&
+          request.resource.data.senderId == request.auth.uid &&
+          request.resource.data.keys().hasOnly(['senderId', 'cipher', 'iv', 'createdAt']) &&
+          request.resource.data.cipher is string && request.resource.data.cipher.size() <= 12000 &&
+          request.resource.data.iv is string && request.resource.data.iv.size() <= 100 &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+
+        allow update, delete: if false;
+      }
+    }
+
+    // ---------- bannedIPs/{ip} ----------
+    // Best-effort IP ban list (see js/ip-guard.js for why this is a
+    // deterrent, not a hard guarantee, in a client-only app with no
+    // backend server — Firestore rules can't see the caller's real IP).
+    // Readable by any signed-in user so the client can self-check on
+    // login/page-load; only an admin can add or remove an entry.
+    match /bannedIPs/{ip} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // ---------- admins/{userId} ----------
+    // auth.js auto-grants the permanent admin account its own admins/{uid}
+    // doc on sign-up/login. Beyond that, only an existing admin can promote
+    // or revoke admin rights for someone else (admin.html's "Make Admin" /
+    // "Revoke Admin" buttons) — nobody else can write here.
+    match /admins/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if request.auth != null && (
+        (request.auth.uid == userId && isPermanentAdminEmail(request.auth.token.email)) ||
+        isAdmin()
+      );
+    }
+
+    // Lender notifications: only the recipient (the lender) can ever
+    // read their own notifications. Any signed-in user can create one
+    // (that's the borrower notifying the lender), but only for someone else
+    // — never for themselves — and it must start unread. After creation,
+    // only the recipient can touch it, and only to flip it to read.
+    match /notifications/{notifId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.recipientId;
+
+      allow create: if request.auth != null && !isBanned() &&
+        request.resource.data.keys().hasOnly(['recipientId', 'type', 'itemId', 'itemTitle', 'claimedByUid',
+          'claimedByName', 'amount', 'unit', 'read', 'createdAt']) &&
+        request.resource.data.type == 'item_claimed' &&
+        request.resource.data.itemTitle is string && request.resource.data.itemTitle.size() <= 200 &&
+        request.resource.data.claimedByName is string && request.resource.data.claimedByName.size() <= 100 &&
+        request.resource.data.unit is string && request.resource.data.unit.size() <= 30 &&
+        request.resource.data.amount is int &&
+        request.resource.data.itemId is string &&
+        exists(/databases/$(database)/documents/items/$(request.resource.data.itemId)) &&
+        get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.userId == request.resource.data.recipientId &&
+        request.resource.data.recipientId != request.auth.uid &&
+        request.resource.data.claimedByUid == request.auth.uid &&
+        request.resource.data.read == false;
+
+      allow update: if request.auth != null &&
+        request.auth.uid == resource.data.recipientId &&
+        request.resource.data.recipientId == resource.data.recipientId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+
+      allow delete: if false;
+    }
+
+    // A chat counts as "reported" once one of its two members has filed a chat report.
+    // Admins may then read that chat (and only that chat); the messages are still
+    // encrypted, the reporter's shared key is what lets the admin page decrypt them.
+    function chatReported(chatId, p) {
+      return exists(/databases/$(database)/documents/reports/$('chat_' + chatId + '_' + p[0])) ||
+             exists(/databases/$(database)/documents/reports/$('chat_' + chatId + '_' + p[1]));
+    }
+
+    // ---------- reports/{id} ----------
+    // Any verified member can file a report about only admins read/resolve.
+    match /reports/{id} {
+      allow create: if request.auth != null && !isBanned() &&
+        request.resource.data.keys().hasOnly(['kind', 'targetId', 'reason', 'details', 'reporterId', 'status', 'createdAt', 'chatId', 'chatKey']) &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.status == 'open' &&
+        request.resource.data.reason is string && request.resource.data.reason.size() <= 60 &&
+        request.resource.data.targetId is string && request.resource.data.targetId.size() <= 120 &&
+        request.resource.data.details is string && request.resource.data.details.size() <= 500 &&
+        (
+          (request.resource.data.kind in ['item', 'user', 'request'] && !('chatId' in request.resource.data) && !('chatKey' in request.resource.data)) ||
+          (request.resource.data.kind == 'chat' &&
+            id == 'chat_' + request.resource.data.chatId + '_' + request.auth.uid &&
+            request.resource.data.chatKey is string && request.resource.data.chatKey.size() < 100 &&
+            request.auth.uid in get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants &&
+            request.resource.data.targetId in get(/databases/$(database)/documents/chats/$(request.resource.data.chatId)).data.participants &&
+            request.resource.data.targetId != request.auth.uid)
+        );
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- leaderboard/{doc} ----------
+    // A pre-computed summary of the rankings + home-page numbers. Published
+    // by an admin from admin.html (or by the optional Cloud Function, which
+    // bypasses rules). Anyone can read it, which is what lets guests see the
+    // board. It holds names + points only, the same things the leaderboard shows.
+    match /leaderboard/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- pushTokens/{token} ----------
+    // One document per phone/browser that turned on alerts. The document id IS the FCM
+    // token. A member can only create/update/delete their own, can't list everyone's, and
+    // only the Cloud Functions (which bypass rules) ever read them to send pushes.
+    match /pushTokens/{tokenId} {
+      allow get, delete: if request.auth != null && resource.data.uid == request.auth.uid;
+      allow create, update: if request.auth != null && !isBanned() &&
+        request.resource.data.uid == request.auth.uid &&
+        request.resource.data.token == tokenId &&
+        request.resource.data.keys().hasOnly(['uid', 'token', 'broadcast', 'platform', 'updatedAt']) &&
+        request.resource.data.token is string && request.resource.data.token.size() < 400 &&
+        request.resource.data.broadcast is bool;
+      allow list: if false;
+    }
+  }
+}

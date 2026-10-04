@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Page not found — Borrowa</title>
+<meta name="robots" content="noindex" />
+<meta name="theme-color" content="#0a1a10" />
+<style>
+  /* Inline on purpose: this page can be served from any depth, so relative CSS would break. */
+  html, body { height: 100%; margin: 0; }
+  body { display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;
+    background: #fbfdfb; color: #0e1a12; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 420px; width: 100%; text-align: center; }
+  .mark { width: 56px; height: 56px; margin: 0 auto 18px; border-radius: 14px; background: #14632f; color: #fff;
+    font-size: 28px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+  h1 { margin: 0 0 8px; font-size: 26px; }
+  p { margin: 0 0 22px; color: #5a6b60; line-height: 1.5; }
+  a.btn { display: inline-block; padding: 12px 22px; border-radius: 999px; background: #14632f; color: #fff;
+    text-decoration: none; font-weight: 600; margin: 4px; }
+  a.btn.alt { background: #fff; color: #14632f; border: 1px solid #14632f; padding: 11px 21px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="mark">B</div>
+  <h1>We couldn't find that page</h1>
+  <p>The link may be old or mistyped. Let's get you back to borrowing.</p>
+  <a class="btn" id="go-home" href="home.html">Browse items</a>
+  <a class="btn alt" id="go-start" href="index.html">Home</a>
+</main>
+<script>
+  // Works at a domain root (borrowa.in) and under a GitHub Pages sub-path (user.github.io/repo/).
+  (function () {
+    var base = "/";
+    if (/\.github\.io$/.test(location.hostname)) {
+      var first = location.pathname.split("/")[1];
+      if (first) base = "/" + first + "/";
+    }
+    document.getElementById("go-home").setAttribute("href", base + "home.html");
+    document.getElementById("go-start").setAttribute("href", base + "index.html");
+  })();
+</script>
+</body>
+</html>

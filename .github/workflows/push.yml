@@ -1,0 +1,36 @@
+# FREE phone alerts: every ~5 minutes, look for new activity and send push notifications.
+# Replaces the paid Cloud Functions. Needs the repo secret FIREBASE_SERVICE_ACCOUNT
+# (setup: docs/FREE_PUSH.md). Delete this file to switch alerts off.
+name: Send phone alerts
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push-alerts
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Send alerts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          # Works whether the repo root is the project folder or its parent.
+          SCRIPT=$(find . -name push-poller.mjs -not -path "*/node_modules/*" | head -1)
+          ROOT=$(dirname "$(dirname "$SCRIPT")")
+          cd "$ROOT"
+          npm install --no-save --no-audit --no-fund firebase-admin@12
+          node scripts/push-poller.mjs

@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Borrowa — Share &amp; Borrow</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="Browse items your neighbours are lending, or lend something yourself." />
+<meta property="og:title" content="Borrowa — Share &amp; Borrow" />
+<meta property="og:description" content="Browse items your neighbours are lending, or lend something yourself." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link active">Browse</a>
+      <a href="requests.html" class="nav-link">Requests</a>
+      <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+      <a href="chat.html" class="nav-link">Messages</a>
+    </div>
+    
+    <div class="nav-actions" style="display: flex; align-items: center; gap: 8px;">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="nav-post-btn" class="btn btn-primary btn-sm">+ Lend item</button>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero-band">
+  <div class="container hero-wrap">
+    <div class="hero-copy">
+      <h1 class="hero-title">Borrow What You Need.<br>Lend What You Have.</h1>
+      <p class="hero-sub">Why buy something you'll use once? Borrow tools, books, gadgets and more from your neighbours, lend out what's sitting idle, and ask the community when you need something. The most active members top the leaderboard.</p>
+      <div class="hero-cta">
+        <a href="#browse" class="btn btn-primary hero-btn">Browse Items</a>
+        <button id="hero-post-btn" class="btn btn-outline hero-btn">Lend an item</button>
+        <a href="requests.html" class="btn btn-accent hero-btn">Request an Item</a>
+      </div>
+    </div>
+    <div class="hero-art" aria-hidden="true">
+      <svg viewBox="0 0 520 360" role="img" focusable="false" preserveAspectRatio="xMaxYMax meet">
+        <!-- shelf with a plant -->
+        <rect x="408" y="30" width="96" height="330" rx="6" fill="#f3dcc0"/>
+        <rect x="408" y="150" width="96" height="6" fill="#e2c29b"/><rect x="408" y="262" width="96" height="6" fill="#e2c29b"/>
+        <path d="M440 150 L448 112 H474 L482 150 Z" fill="#c9733d"/>
+        <ellipse cx="461" cy="96" rx="9" ry="24" fill="#3f9d5b" transform="rotate(-25 461 96)"/><ellipse cx="478" cy="98" rx="9" ry="22" fill="#2f8a4c" transform="rotate(28 478 98)"/><ellipse cx="458" cy="84" rx="8" ry="20" fill="#56b574"/>
+        <rect x="430" y="214" width="26" height="36" rx="3" fill="#c7d2e0"/><rect x="462" y="224" width="24" height="26" rx="3" fill="#e8b4a0"/>
+        <!-- woman -->
+        <path d="M96 360 Q96 238 152 226 H214 Q268 238 268 360 Z" fill="#e8863f"/>
+        <path d="M166 226 L183 264 L200 226 Z" fill="#fff"/>
+        <rect x="170" y="204" width="26" height="26" rx="8" fill="#f1c4a0"/>
+        <circle cx="205" cy="116" r="17" fill="#d4d4d8"/>
+        <ellipse cx="183" cy="172" rx="36" ry="42" fill="#f1c4a0"/>
+        <path d="M146 172 Q144 124 184 122 Q224 124 221 174 Q214 146 184 146 Q156 148 146 172 Z" fill="#d4d4d8"/>
+        <circle cx="170" cy="177" r="2.8" fill="#3b2a20"/><circle cx="197" cy="177" r="2.8" fill="#3b2a20"/>
+        <path d="M168 192 Q183 207 199 192" fill="none" stroke="#a5513a" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="160" cy="190" r="6" fill="#f3a58e" opacity=".55"/><circle cx="207" cy="190" r="6" fill="#f3a58e" opacity=".55"/>
+        <path d="M244 244 Q286 240 306 266 L292 286 Q272 266 246 272 Z" fill="#e8863f"/>
+        <circle cx="298" cy="274" r="12" fill="#f1c4a0"/>
+        <!-- man -->
+        <path d="M300 360 Q304 244 356 234 H412 Q466 244 466 360 Z" fill="#6f8fae"/>
+        <path d="M362 234 L386 266 L410 234 Z" fill="#587995"/>
+        <rect x="374" y="210" width="26" height="26" rx="8" fill="#8a5a3a"/>
+        <ellipse cx="387" cy="180" rx="34" ry="40" fill="#8a5a3a"/>
+        <path d="M353 172 Q351 130 388 128 Q422 130 421 172 Q412 148 387 148 Q362 148 353 172 Z" fill="#1c1917"/>
+        <path d="M355 192 Q358 228 387 230 Q416 228 419 192 Q406 208 387 208 Q368 208 355 192 Z" fill="#1c1917"/>
+        <path d="M374 202 Q387 216 400 202 Z" fill="#fff"/>
+        <circle cx="375" cy="176" r="2.8" fill="#120d0a"/><circle cx="400" cy="176" r="2.8" fill="#120d0a"/>
+        <path d="M352 250 Q326 252 320 276 L334 288 Q342 270 360 270 Z" fill="#6f8fae"/>
+        <circle cx="330" cy="280" r="11" fill="#8a5a3a"/>
+        <!-- the drill they share -->
+        <rect x="262" y="256" width="62" height="26" rx="9" fill="#1f8a47"/>
+        <rect x="320" y="262" width="20" height="14" rx="3" fill="#6b7280"/><rect x="338" y="267" width="22" height="4" rx="2" fill="#9ca3af"/>
+        <path d="M276 280 H300 L294 318 Q293 322 288 322 H283 Q278 322 277 318 Z" fill="#15803d"/>
+        <rect x="270" y="262" width="16" height="6" rx="3" fill="#86efac" opacity=".8"/>
+        <circle cx="284" cy="278" r="12" fill="#f1c4a0"/>
+        <circle cx="330" cy="280" r="11" fill="#8a5a3a"/>
+      </svg>
+    </div>
+  </div>
+</header>
+
+<!-- Live Database Stats (ids are filled in by main.js and the cache script below) -->
+<section class="container stats-strip" aria-label="Community numbers">
+  <div class="home-stats">
+    <div class="stat-card"><h3 id="stat-items-listed">--</h3><p>Items to borrow</p></div>
+    <div class="stat-card"><h3 id="stat-active-borrows">--</h3><p>Borrowed right now</p></div>
+    <div class="stat-card"><h3 id="stat-active-members">--</h3><p>Active members</p></div>
+    <div class="stat-card"><h3 id="stat-open-requests">--</h3><p>Open requests</p></div>
+  </div>
+</section>
+
+<section class="container home-browse" id="browse">
+  <div class="home-browse-head">
+    <div>
+      <h2 class="section-title">Browse items to borrow</h2>
+      <p class="section-sub">Borrow from a neighbour, then return it when you're done.</p>
+    </div>
+    <!-- Search Bar Input for main.js filtering integration -->
+    <div>
+      <input type="text" id="search-input" class="home-search" placeholder="Search title or location..." />
+    </div>
+  </div>
+
+  <!-- Category Filter Bar -->
+  <div class="chip-row">
+    <button class="filter-chip" data-category="All" style="background: #14632f; color: #fff; border: 1px solid #14632f; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;">All</button>
+    <button class="filter-chip" data-category="Furniture" style="background: #fff; color: #374151; border: 1px solid #d5e3da; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;">Furniture</button>
+    <button class="filter-chip" data-category="Electronics" style="background: #fff; color: #374151; border: 1px solid #d5e3da; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;">Electronics</button>
+    <button class="filter-chip" data-category="Books" style="background: #fff; color: #374151; border: 1px solid #d5e3da; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;">Books</button>
+    <button class="filter-chip" data-category="Clothing" style="background: #fff; color: #374151; border: 1px solid #d5e3da; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;">Clothing</button>
+    <button class="filter-chip" data-category="Misc" style="background: #fff; color: #374151; border: 1px solid #d5e3da; padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer;">Misc</button>
+  </div>
+
+  <!-- Item Grid (Fixed ID to match main.js) -->
+  <div id="item-grid" class="home-item-grid">
+    <div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div>
+  </div>
+</section>
+
+
+<section class="container how-section">
+  <h2 class="section-title">How Borrowa Works</h2>
+  <div class="how-steps">
+    <div class="how-step">
+      <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true"><circle cx="20" cy="20" r="12" fill="#e3f6ea" stroke="#1f8a47" stroke-width="3.5"/><path d="M29 29 L41 41" stroke="#1f8a47" stroke-width="5" stroke-linecap="round"/><path d="M14 18 Q17 12 23 13" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>
+      <span><b>1.</b> Find an Item</span>
+    </div>
+    <div class="how-step">
+      <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true"><circle cx="18" cy="16" r="7" fill="#1f8a47"/><path d="M5 40 Q5 27 18 27 Q31 27 31 40 Z" fill="#1f8a47"/><circle cx="34" cy="19" r="6" fill="#86d6a0"/><path d="M24 40 Q25 30 34 30 Q44 30 44 40 Z" fill="#86d6a0"/></svg>
+      <span><b>2.</b> Connect with a Neighbour</span>
+    </div>
+    <div class="how-step">
+      <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true"><path d="M10 24 A14 14 0 0 1 36 16" fill="none" stroke="#1f8a47" stroke-width="4.5" stroke-linecap="round"/><path d="M38 6 V18 H26" fill="none" stroke="#1f8a47" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M38 24 A14 14 0 0 1 12 32" fill="none" stroke="#86d6a0" stroke-width="4.5" stroke-linecap="round"/><path d="M10 42 V30 H22" fill="none" stroke="#86d6a0" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span><b>3.</b> Use &amp; Return</span>
+    </div>
+  </div>
+
+  <div class="cta-panel">
+    <div class="cta-half">
+      <h3>Lend an item</h3>
+      <a href="home.html?lend=1" class="btn btn-primary">List your item to lend</a>
+    </div>
+    <div class="cta-half">
+      <h3>Need something specific?</h3>
+      <p>Can't find it? Ask your neighbours.</p>
+      <a href="requests.html" class="cta-link">Make a request &rarr;</a>
+    </div>
+  </div>
+</section>
+
+<!-- Post/Edit Item Modal Overlay -->
+<div id="post-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; padding: 16px;">
+  <div style="background: #ffffff; width: 100%; max-width: 500px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="margin: 0; font-size: 20px; color: #111;">Lend an item</h3>
+      <button id="post-modal-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280;">&times;</button>
+    </div>
+    
+    <form id="post-item-form" style="display: flex; flex-direction: column; gap: 12px;">
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Item Title</label>
+        <input type="text" name="title" maxlength="80" required autocapitalize="sentences" placeholder="e.g. Wooden Dining Chair" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;" />
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Photo (optional)</label>
+        <div style="display:flex; align-items:center; gap:12px; background:#f1f6f2; border:1px dashed #cfe3d4; border-radius:8px; padding:10px 12px;">
+          <img id="post-photo-preview" src="" alt="" style="display:none; width:52px; height:52px; object-fit:cover; border-radius:6px; flex-shrink:0;" />
+          <label class="btn btn-outline btn-sm" style="cursor:pointer; white-space:nowrap;">
+            Choose photo
+            <input type="file" id="post-photo-input" name="photo" accept="image/*" style="display:none;" />
+          </label>
+          <span id="post-photo-filename" style="font-size:12px; color:#6b7280;">No file selected — items with photos get borrowed faster</span>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div>
+          <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Category</label>
+          <select name="category" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; box-sizing: border-box;">
+            <option value="Furniture">Furniture</option>
+            <option value="Electronics">Electronics</option>
+            <option value="Books">Books</option>
+            <option value="Clothing">Clothing</option>
+            <option value="Misc">Misc</option>
+          </select>
+        </div>
+        <div>
+          <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Condition</label>
+          <select name="condition" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; box-sizing: border-box;">
+            <option value="">Select condition</option>
+            <option value="New">New</option>
+            <option value="Like New">Like New</option>
+            <option value="Good">Good</option>
+            <option value="Fair">Fair</option>
+            <option value="Needs Repair">Needs Repair</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div>
+          <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Quantity</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="number" name="quantityAmount" min="1" step="1" required placeholder="e.g. 3" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;" />
+            <select name="quantityUnit" required style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; box-sizing: border-box;">
+              <option value="units">units</option>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+              <option value="pieces">pieces</option>
+              <option value="packs">packs</option>
+              <option value="liters">liters</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Borrow for up to</label>
+          <select name="borrowPeriod" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; box-sizing: border-box;">
+            <option value="a few hours">A few hours</option>
+            <option value="1 day">1 day</option>
+            <option value="3 days">3 days</option>
+            <option value="1 week" selected>1 week</option>
+            <option value="2 weeks">2 weeks</option>
+            <option value="1 month">1 month</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Pickup / Return Location</label>
+        <input type="text" name="pickupLocation" maxlength="120" required placeholder="e.g. Downtown / Building B" style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;" />
+      </div>
+
+      <div>
+        <label style="display: block; font-size: 13px; font-weight: 600; color: #374151; margin-bottom: 4px;">Description</label>
+        <textarea name="description" maxlength="1000" rows="3" placeholder="Anything a borrower should know (size, how to use it, care instructions)..." style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box; resize: vertical;"></textarea>
+      </div>
+
+      <!-- Admin-only: shown by main.js only when the signed-in member is an admin -->
+      <div id="admin-style-box" style="display:none; border:1px solid #cfe3d4; background:#f1f6f2; border-radius:10px; padding:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+          <strong style="font-size:13px; color:#14632f;">🛡️ Admin post style</strong>
+          <button type="button" id="admin-style-reset" style="background:#fff; border:1px solid #cfe3d4; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; color:#14632f; cursor:pointer;">Reset</button>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; color:#374151; margin-bottom:10px;">
+          <input type="checkbox" id="admin-style-on" /> Use my own colors on this post
+        </label>
+        <div class="admin-style-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <label style="font-size:12px; color:#374151; font-weight:600;">Card background
+            <input type="color" name="styleBg" value="#ffffff" style="display:block; width:100%; height:36px; margin-top:4px; padding:2px; border:1px solid #d1d5db; border-radius:6px; background:#fff;" /></label>
+          <label style="font-size:12px; color:#374151; font-weight:600;">Border &amp; accent
+            <input type="color" name="styleBorder" value="#14632f" style="display:block; width:100%; height:36px; margin-top:4px; padding:2px; border:1px solid #d1d5db; border-radius:6px; background:#fff;" /></label>
+          <label style="font-size:12px; color:#374151; font-weight:600;">Title color
+            <input type="color" name="styleTitle" value="#14632f" style="display:block; width:100%; height:36px; margin-top:4px; padding:2px; border:1px solid #d1d5db; border-radius:6px; background:#fff;" /></label>
+          <label style="font-size:12px; color:#374151; font-weight:600;">Text color
+            <input type="color" name="styleText" value="#4b5563" style="display:block; width:100%; height:36px; margin-top:4px; padding:2px; border:1px solid #d1d5db; border-radius:6px; background:#fff;" /></label>
+        </div>
+        <div id="admin-style-preview" style="margin-top:12px; padding:14px; border-radius:10px; background:#fff; border:2px solid #14632f;">
+          <h3 class="item-title" style="font-size:18px; color:#14632f; --accent:#14632f;">Preview title</h3>
+          <p style="margin:0; font-size:13px; color:#4b5563;">This is how the description will look.</p>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="margin-top: 8px;">List item</button>
+    </form>
+  </div>
+</div>
+
+<!-- Claim Item Confirmation Modal Overlay -->
+<div id="claim-modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; padding: 16px;">
+  <div style="background: #ffffff; width: 100%; max-width: 450px; border-radius: 12px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); position: relative;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h3 style="margin: 0; font-size: 20px; color: #111;">Borrow this item</h3>
+      <button id="claim-modal-close" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280;">&times;</button>
+    </div>
+    
+    <p id="claim-item-details" style="font-size: 14px; color: #4b5563; margin-bottom: 12px;">
+      You are about to borrow this item. Once confirmed, a private chat will open with the lender to arrange pickup and return.
+    </p>
+
+    <div id="claim-amount-container" style="margin-bottom: 20px;"></div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button id="claim-cancel-btn" class="btn btn-outline" style="padding: 8px 16px;">Cancel</button>
+      <button id="claim-confirm-btn" class="btn btn-primary" style="padding: 8px 16px;">Confirm Borrow</button>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div class="container">
+    <span class="brand"><span class="brand-mark">B</span> Borrowa</span>
+    <span>© 2026 Borrowa · Share more, buy less.</span>
+    <div class="footer-links"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a></div>
+  </div>
+</footer>
+
+<!-- Instant Caching Fallback Script -->
+<script>
+  (function() {
+    const cachedStats = sessionStorage.getItem('borrowa_home_stats');
+    if (cachedStats) {
+      try {
+        const stats = JSON.parse(cachedStats);
+        document.getElementById('stat-items-listed').innerText = stats.items || '0';
+        document.getElementById('stat-active-borrows').innerText = stats.borrows || '0';
+        document.getElementById('stat-active-members').innerText = stats.members || '0';
+        document.getElementById('stat-open-requests').innerText = stats.requests || '0';
+      } catch (e) {}
+    }
+  })();
+</script>
+
+<script type="module" src="js/nav-cache.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/verify-banner.js"></script>
+<script src="js/prefetch.js" defer></script>
+<script src="js/mobile-nav.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Messages — Borrowa</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="Private messages with the people you borrow from and lend to." />
+<meta property="og:title" content="Messages — Borrowa" />
+<meta property="og:description" content="Private messages with the people you borrow from and lend to." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Browse</a>
+      <a href="requests.html" class="nav-link">Requests</a>
+      <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+      <a href="chat.html" class="nav-link active">Messages</a>
+    </div>
+    <div class="nav-actions">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="nav-post-btn" class="btn btn-primary btn-sm">+ Lend item</button>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="page-header">
+    <h1>Messages</h1>
+    <p style="color:var(--muted);font-size:13px;margin-top:6px;">Chat with the lender or borrower about an item — pickup time, exact spot, anything else they need to know. 🔒 Messages are end-to-end encrypted in this browser.</p>
+  </div>
+
+  <div class="chat-shell">
+    <aside class="chat-list-pane" id="chat-list">
+      <div class="empty-state">Loading conversations…</div>
+    </aside>
+    <section class="chat-thread-pane">
+      <div class="chat-thread-header" id="chat-thread-header">Select a conversation</div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="empty-state">Chats open here once you borrow an item, offer to lend something someone requested, or message a borrower from your listing.</div>
+      </div>
+      <form class="chat-input-row" id="chat-form" style="display:none;">
+        <input type="text" id="chat-input" placeholder="Type a message…" autocomplete="off" />
+        <button type="submit" class="btn btn-primary btn-sm">Send</button>
+      </form>
+    </section>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage } from "./js/auth.js";
+  guardPage();
+</script>
+<script type="module" src="js/nav-cache.js"></script>
+<script type="module" src="js/main.js"></script>
+
+<script type="module">
+  import { auth } from "./js/firebase-config.js";
+  import { listenMessages, listenMyChats, sendMessage, getChat, otherParticipant, decryptMessage } from "./js/chat.js";
+  import { decryptFromUser } from "./js/e2ee.js";
+  import { openChatReport } from "./js/chat-report.js";
+
+  const listEl = document.getElementById("chat-list");
+  const headerEl = document.getElementById("chat-thread-header");
+  const messagesEl = document.getElementById("chat-messages");
+  const formEl = document.getElementById("chat-form");
+  const inputEl = document.getElementById("chat-input");
+
+  const params = new URLSearchParams(window.location.search);
+  let activeChatId = params.get("id") || null;
+  let activeOtherUid = null;
+  let unsubMessages = null;
+
+  function escapeHtml(text) {
+    if (text === null || text === undefined) return "";
+    return String(text)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function otherPartyName(chat, uid) {
+    const names = chat.participantNames || {};
+    const otherUid = otherParticipant(chat, uid);
+    return names[otherUid] || "Neighbor";
+  }
+
+  async function renderList(chats, uid) {
+    if (!chats.length) {
+      listEl.innerHTML = `<div class="empty-state">No conversations yet.</div>`;
+      return;
+    }
+
+    // Decrypt each thread's last-message preview in parallel. If a preview
+    // can't be decrypted yet (other side hasn't published a key, or it's a
+    // brand-new/legacy row), fall back to a safe placeholder rather than
+    // failing the whole list.
+    const rows = await Promise.all(chats.map(async (c) => {
+      const otherUid = otherParticipant(c, uid);
+      let preview = "Say hello 👋";
+      if (c.lastMessageCipher && c.lastMessageIv) {
+        try {
+          preview = await decryptFromUser(otherUid, c.lastMessageCipher, c.lastMessageIv);
+        } catch (e) {
+          preview = "🔒 Encrypted message";
+        }
+      } else if (c.lastMessage) {
+        preview = c.lastMessage; // legacy pre-encryption thread
+      }
+      return `
+        <a class="chat-list-item ${c.id === activeChatId ? "active" : ""}" href="chat.html?id=${encodeURIComponent(c.id)}">
+          <div class="chat-list-name">${escapeHtml(otherPartyName(c, uid))}</div>
+          <div class="chat-list-item-title">${escapeHtml(c.itemTitle || "")}</div>
+          <div class="chat-list-preview">${escapeHtml(preview || "")}</div>
+        </a>`;
+    }));
+    listEl.innerHTML = rows.join("");
+  }
+
+  async function renderMessages(msgs, uid, otherUid) {
+    if (!msgs.length) {
+      messagesEl.innerHTML = `<div class="empty-state">No messages yet — say hello 👋</div>`;
+      return;
+    }
+    const rows = await Promise.all(msgs.map(async (m) => {
+      const text = await decryptMessage(m, otherUid);
+      return `
+        <div class="chat-bubble-row ${m.senderId === uid ? "mine" : ""}">
+          <div class="chat-bubble">${escapeHtml(text || "")}</div>
+        </div>`;
+    }));
+    messagesEl.innerHTML = rows.join("");
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  async function openChat(chatId, uid) {
+    activeChatId = chatId;
+    if (unsubMessages) unsubMessages();
+    formEl.style.display = "none";
+    headerEl.textContent = "Loading…";
+
+    const chat = await getChat(chatId);
+    if (!chat || !(chat.participants || []).includes(uid)) {
+      headerEl.textContent = "Conversation not found";
+      messagesEl.innerHTML = `<div class="empty-state">This conversation doesn't exist or isn't yours.</div>`;
+      return;
+    }
+
+    activeOtherUid = otherParticipant(chat, uid);
+    const otherName = otherPartyName(chat, uid);
+    headerEl.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;";
+    headerEl.innerHTML = `<span>🔒 ${escapeHtml(otherName)} · ${escapeHtml(chat.itemTitle || "")}</span><button type="button" id="report-chat-btn" class="btn btn-outline btn-sm" style="flex-shrink:0;">🚩 Report</button>`;
+    document.getElementById("report-chat-btn").onclick = () => openChatReport({ chatId, otherUid: activeOtherUid, otherName });
+    formEl.style.display = "flex";
+    unsubMessages = listenMessages(chatId, (msgs) => renderMessages(msgs, uid, activeOtherUid));
+  }
+
+  auth.onAuthStateChanged((user) => {
+    if (!user) return; // guardPage() handles the redirect
+    listenMyChats((chats) => renderList(chats, user.uid));
+    if (activeChatId) openChat(activeChatId, user.uid);
+
+    formEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!activeChatId) return;
+      const text = inputEl.value;
+      inputEl.value = "";
+      try {
+        await sendMessage(activeChatId, text, activeOtherUid);
+      } catch (err) {
+        alert(err.message);
+      }
+    });
+  });
+</script>
+<script type="module" src="js/verify-banner.js"></script>
+<script src="js/prefetch.js" defer></script>
+<script src="js/mobile-nav.js" defer></script>
+</body>
+</html>

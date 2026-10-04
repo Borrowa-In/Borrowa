@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Borrowa — Borrow Requests</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="Ask your neighbours to lend you something and offer help on open requests." />
+<meta property="og:title" content="Borrowa — Borrow Requests" />
+<meta property="og:description" content="Ask your neighbours to lend you something and offer help on open requests." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .req-toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:18px; }
+  .req-tabs { display:flex; gap:8px; flex-wrap:wrap; }
+  .req-chip { background:#fff; color:#374151; border:1px solid #d5e3da; padding:8px 16px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; }
+  .req-chip.active { background:#14632f; color:#fff; border-color:#14632f; }
+  .req-filters { display:flex; gap:10px; flex-wrap:wrap; }
+  .req-filters input, .req-filters select { padding:8px 12px; border:1px solid #d1d5db; border-radius:8px; font-size:13px; background:#fff; }
+  .req-filters input { width:220px; }
+
+  .req-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(300px, 1fr)); gap:20px; }
+  .req-card { background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; display:flex; flex-direction:column; gap:10px; box-shadow:0 1px 3px rgba(15,45,28,.05); }
+  .req-card.mine { border-color:#86efac; background:#fbfffc; }
+  .req-card-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; }
+  .req-card h3 { font-family:'Inter',sans-serif; font-size:17px; font-weight:700; color:#0f172a; margin:0; line-height:1.3; }
+  .req-details { color:#4b5563; font-size:13.5px; line-height:1.5; margin:0; white-space:pre-wrap; word-break:break-word; }
+  .req-meta { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12.5px; color:#475569; }
+  .req-meta span b { color:#0f172a; font-weight:600; }
+  .req-who { font-size:12.5px; color:#64748b; border-top:1px solid #eef2ef; padding-top:10px; margin-top:auto; }
+  .req-actions { display:flex; gap:8px; flex-wrap:wrap; }
+  .req-actions .btn { flex:0 0 auto; }
+  .badge-open { background:#d3f5df; color:#14632f; }
+  .badge-fulfilled { background:#dbeafe; color:#1e40af; }
+  .badge-cat { background:#f1f5f9; color:#334155; }
+  .req-late { color:#b45309; font-weight:600; }
+  .req-empty { grid-column:1/-1; text-align:center; color:#6b7280; padding:48px 16px; background:#fff; border:1px dashed var(--line); border-radius:14px; }
+
+  .req-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:1000; justify-content:center; align-items:center; padding:16px; overflow-y:auto; }
+  .req-modal { background:#fff; width:100%; max-width:500px; border-radius:12px; padding:24px; box-shadow:0 10px 25px rgba(0,0,0,.1); }
+  .req-modal label { display:block; font-size:13px; font-weight:600; color:#374151; margin-bottom:4px; }
+  .req-modal input, .req-modal select, .req-modal textarea { width:100%; padding:10px; border:1px solid #d1d5db; border-radius:6px; font-size:14px; box-sizing:border-box; font-family:inherit; background:#fff; }
+  .req-modal textarea { resize:vertical; min-height:80px; }
+  .req-hint { font-size:12px; color:#6b7280; margin:4px 0 0; }
+  #req-toast { position:fixed; bottom:24px; right:24px; padding:12px 18px; border-radius:8px; color:#fff; font-size:14px; font-weight:500; z-index:2000; box-shadow:0 4px 12px rgba(0,0,0,.15); transition:opacity .3s; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Browse</a>
+      <a href="requests.html" class="nav-link active">Requests</a>
+      <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+      <a href="chat.html" class="nav-link">Messages</a>
+    </div>
+    <div class="nav-actions" style="display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity 0.2s ease;" id="nav-actions-wrapper">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="nav-post-btn" class="btn btn-primary btn-sm">+ Lend item</button>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const wrapper = document.getElementById('nav-actions-wrapper');
+    if (wrapper) wrapper.style.opacity = '1';
+  });
+</script>
+
+<header class="container hero" style="padding-top: 40px; padding-bottom: 24px;">
+  <span class="eyebrow">NEIGHBOR TO NEIGHBOR</span>
+  <h1 style="font-size: 38px; margin: 8px 0 12px 0;">Borrow Requests</h1>
+  <p style="color: #4b5563; font-size: 15px; max-width: 620px; margin: 0 0 20px 0;">
+    Need a ladder, a textbook, or a drill for the weekend? Ask the community. Neighbors who have it can offer to lend it and chat with you directly.
+  </p>
+  <button id="new-request-btn" class="btn btn-primary" style="padding: 12px 24px; font-weight: 600;">+ Request an item</button>
+</header>
+
+<section class="container" style="padding-bottom: 80px;">
+  <div class="req-toolbar">
+    <div class="req-tabs">
+      <button class="req-chip active" data-view="open">Open requests</button>
+      <button class="req-chip" data-view="mine">My requests</button>
+      <button class="req-chip" data-view="fulfilled">Fulfilled</button>
+    </div>
+    <div class="req-filters">
+      <input type="text" id="req-search" placeholder="Search requests..." />
+      <select id="req-category-filter">
+        <option value="All">All categories</option>
+        <option>Furniture</option><option>Electronics</option>
+        <option>Books</option><option>Clothing</option><option>Tools</option><option>Misc</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="req-grid" class="req-grid">
+    <p style="color:#6b7280; font-size:14px;">Loading requests...</p>
+  </div>
+</section>
+
+<!-- New request modal -->
+<div id="req-overlay" class="req-overlay">
+  <div class="req-modal">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <h3 style="margin:0; font-size:20px; color:#111;">Request an item</h3>
+      <button id="req-close" type="button" style="background:none; border:none; font-size:22px; cursor:pointer; color:#6b7280;">&times;</button>
+    </div>
+    <p class="req-hint" style="margin:0 0 16px;">Describe what you need. Neighbors can offer to lend it and message you.</p>
+    <form id="req-form" style="display:flex; flex-direction:column; gap:12px;">
+      <div>
+        <label for="req-title">What do you need?</label>
+        <input type="text" id="req-title" maxlength="80" required placeholder="e.g. Step ladder" />
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <label for="req-category">Category</label>
+          <select id="req-category" required>
+            <option>Tools</option><option>Electronics</option><option>Books</option><option>Furniture</option>
+            <option>Clothing</option><option>Misc</option>
+          </select>
+        </div>
+        <div>
+          <label for="req-duration">Borrow for</label>
+          <select id="req-duration" required>
+            <option>A few hours</option><option>1 day</option><option>2-3 days</option>
+            <option selected>1 week</option><option>2 weeks</option><option>1 month</option><option>Not sure</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <label for="req-needed-by">Needed by</label>
+          <input type="date" id="req-needed-by" required />
+        </div>
+        <div>
+          <label for="req-building">Your building / area</label>
+          <input type="text" id="req-building" maxlength="60" required placeholder="e.g. Block B" />
+        </div>
+      </div>
+      <div>
+        <label for="req-details">Details (optional)</label>
+        <textarea id="req-details" maxlength="400" placeholder="Anything that helps, like size, condition, or why you need it"></textarea>
+      </div>
+      <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:4px;">
+        <button type="button" id="req-cancel" class="btn btn-outline">Cancel</button>
+        <button type="submit" id="req-submit" class="btn btn-primary">Post request</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage } from "./js/auth.js";
+  guardPage();
+</script>
+<script type="module" src="js/nav-cache.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/requests.js"></script>
+<script type="module" src="js/verify-banner.js"></script>
+<script src="js/prefetch.js" defer></script>
+<script src="js/mobile-nav.js" defer></script>
+</body>
+</html>

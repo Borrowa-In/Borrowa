@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Borrowa — Top Members</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="See the most active lenders and helpers in the Borrowa community." />
+<meta property="og:title" content="Borrowa — Top Members" />
+<meta property="og:description" content="See the most active lenders and helpers in the Borrowa community." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Browse</a>
+      <a href="requests.html" class="nav-link">Requests</a>
+      <a href="leaderboard.html" class="nav-link active">Leaderboard</a>
+      <a href="chat.html" class="nav-link">Messages</a>
+    </div>
+    <!-- nav-actions wrapped with opacity 0 initially to prevent any loading flash -->
+    <div class="nav-actions" style="display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity 0.2s ease;" id="nav-actions-wrapper">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="nav-post-btn" class="btn btn-primary btn-sm">+ Lend item</button>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+
+<script>
+  // Immediately reveal nav actions once DOM is parsed to prevent layout flash
+  document.addEventListener("DOMContentLoaded", () => {
+    const wrapper = document.getElementById('nav-actions-wrapper');
+    if (wrapper) wrapper.style.opacity = '1';
+  });
+</script>
+
+<header class="container hero" style="padding-top: 40px; padding-bottom: 30px;">
+  <span class="eyebrow">MOST ACTIVE MEMBERS</span>
+  <h1 style="font-size: 38px; margin: 8px 0 12px 0;">Leaderboard</h1>
+  <p style="color: #4b5563; font-size: 15px; max-width: 640px; margin: 0;">
+    Members are ranked by how much they take part: lending items, borrowing, asking for things and offering to help.
+    The more you join in, the higher you climb.
+  </p>
+</header>
+
+<section class="container" style="padding-bottom: 40px;">
+  <!-- Community numbers -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px;">
+    <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #d5e3da; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center;">
+      <h2 id="lead-stat-items" style="font-size: 28px; font-weight: 700; color: #14632f; margin: 0 0 4px 0;">--</h2>
+      <p style="font-size: 13px; color: #6b7280; margin: 0;">Items listed</p>
+    </div>
+    <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #d5e3da; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center;">
+      <h2 id="lead-stat-borrows" style="font-size: 28px; font-weight: 700; color: #14632f; margin: 0 0 4px 0;">--</h2>
+      <p style="font-size: 13px; color: #6b7280; margin: 0;">Total borrows</p>
+    </div>
+    <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #d5e3da; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center;">
+      <h2 id="lead-stat-members" style="font-size: 28px; font-weight: 700; color: #14632f; margin: 0 0 4px 0;">--</h2>
+      <p style="font-size: 13px; color: #6b7280; margin: 0;">Active members</p>
+    </div>
+    <div style="background: #ffffff; padding: 20px; border-radius: 12px; border: 1px solid #d5e3da; box-shadow: 0 1px 3px rgba(0,0,0,0.05); text-align: center;">
+      <h2 id="lead-stat-requests" style="font-size: 28px; font-weight: 700; color: #14632f; margin: 0 0 4px 0;">--</h2>
+      <p style="font-size: 13px; color: #6b7280; margin: 0;">Borrow requests</p>
+    </div>
+  </div>
+
+  <!-- How points work -->
+  <div style="background: #f1f6f2; border: 1px solid #cfe3d4; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; font-size: 13px; color: #14632f; line-height: 1.7;">
+    <strong>How points work:</strong>
+    list an item <b>+2</b> (up to 5) · lend to a new neighbor who returns it <b>+8</b> ·
+    borrow from a new neighbor and return it <b>+8</b> · be chosen as the helper on a request <b>+6</b> ·
+    your request gets fulfilled <b>+3</b> · post a request <b>+1</b> (up to 5).
+    Exchanges only count once the lender confirms the return, each pair of neighbors counts once, and verified email is required.
+  </div>
+
+  <!-- Tiers -->
+  <h3 style="font-size: 16px; font-weight: 600; color: #0e1a12; margin: 0 0 12px 0;">Rank tiers</h3>
+  <div id="tier-legend" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; margin-bottom: 28px;"></div>
+
+  <!-- Your rank card -->
+  <div id="my-rank-slot"></div>
+
+  <!-- Podium -->
+  <div id="podium" style="display: flex; gap: 14px; justify-content: center; align-items: flex-end; margin-bottom: 28px; flex-wrap: wrap;"></div>
+
+  <!-- Rankings -->
+  <div style="background: #ffffff; border-radius: 12px; border: 1px solid #d5e3da; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+    <h3 style="font-size: 18px; font-weight: 600; color: #0e1a12; margin: 0 0 16px 0;">Top Members</h3>
+    <div id="leaderboard-list" style="color: #4b5563; font-size: 14px;">
+      Loading top community members...
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <span class="brand"><span class="brand-mark">B</span> Borrowa</span>
+    <span>© 2026 Borrowa · Share more, buy less.</span>
+    <div class="footer-links"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a></div>
+  </div>
+</footer>
+
+<script type="module">
+  import { guardPage } from "./js/auth.js";
+  guardPage();
+</script>
+<script type="module" src="js/nav-cache.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/leaderboard.js"></script>
+<script type="module" src="js/verify-banner.js"></script>
+<script src="js/prefetch.js" defer></script>
+<script src="js/mobile-nav.js" defer></script>
+</body>
+</html>

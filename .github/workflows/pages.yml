@@ -1,0 +1,41 @@
+# Publishes the website (the folder that contains home.html) to GitHub Pages.
+# One-time setup: repo Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+name: Deploy site to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect the site files
+        run: |
+          # Works whether the repo root is the project folder or its parent.
+          HOME_FILE=$(find . -name home.html -not -path "*/node_modules/*" -not -path "./_site/*" | head -1)
+          SITE_DIR=$(dirname "$HOME_FILE")
+          echo "Site folder: $SITE_DIR"
+          mkdir _site
+          cp -r "$SITE_DIR"/. _site/
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

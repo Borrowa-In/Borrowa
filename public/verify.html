@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Verify your email — Borrowa</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="Verify your email to start lending and borrowing on Borrowa." />
+<meta property="og:title" content="Verify your email — Borrowa" />
+<meta property="og:description" content="Verify your email to start lending and borrowing on Borrowa." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<meta name="robots" content="noindex, nofollow" />
+<link rel="stylesheet" href="css/style.css" />
+<style>.vbox{max-width:440px;margin:56px auto;padding:28px 22px;text-align:center}.vbox h1{font-size:1.6rem;margin:0 0 8px}.vbox p{color:#4b5563;line-height:1.5}.vbox .btn{margin:6px 4px}.vbox input{width:100%;padding:12px;font-size:1.4rem;letter-spacing:.5em;text-align:center;border:1px solid #d1d5db;border-radius:8px;box-sizing:border-box}#vmsg{min-height:22px;font-weight:600;margin:12px 0}</style>
+</head><body>
+<main class="vbox">
+  <div style="font-size:44px;">📬</div>
+  <h1>Check your email</h1>
+  <p>We sent a verification link to <strong id="vemail">your email</strong>. Click it and this page will continue by itself.</p>
+  <p id="mail-note" style="font-size:.85rem;background:#fef3c7;color:#78350f;border:1px solid #fcd34d;border-radius:8px;padding:10px 12px;"></p>
+  <div id="vmsg" role="status"></div>
+  <button class="btn btn-primary" id="resend">Resend email</button>
+  <button class="btn btn-outline" id="check">I've verified</button>
+  <div id="otp-wrap" style="display:none;margin-top:22px;">
+    <p>Or enter the 6-digit code we emailed you:</p>
+    <input id="otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="••••••" />
+    <button class="btn btn-primary btn-block" id="otp-go" style="margin-top:10px;">Verify code</button>
+    <button class="btn btn-outline btn-block" id="otp-send" style="margin-top:8px;">Email me a code</button>
+  </div>
+  <p style="font-size:.85rem;margin-top:22px;">Wrong email? <a href="#" id="out">Log out</a> and sign up again. </p>
+</main>
+<script type="module">
+import { auth } from "./js/firebase-config.js";
+import { EMAIL_OTP_ENABLED, MAIL_NOTE } from "./js/firebase-config.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { sendVerification, refreshVerification, logOut, requestEmailOtp, verifyEmailOtp } from "./js/auth.js";
+const $ = (id) => document.getElementById(id), msg = $("vmsg");
+const q = new URLSearchParams(location.search);
+const next = /^[a-z0-9_-]+\.html/i.test(q.get("next") || "") ? q.get("next") : "home.html";
+$("mail-note").textContent = MAIL_NOTE;
+const say = (t) => { msg.textContent = t; };
+let me = null, poll = null;
+function cooldown(btn, label, secs) { btn.disabled = true; let n = secs; const t = setInterval(() => { btn.textContent = n > 0 ? label + " (" + n-- + "s)" : label; if (n < 0) { clearInterval(t); btn.disabled = false; } }, 1000); }
+async function done() { clearInterval(poll); say("Verified! Taking you in…"); setTimeout(() => location.href = next, 700); }
+async function check(manual) { try { if (await refreshVerification()) return done(); if (manual) say("Not verified yet. Click the link in the email first."); } catch (e) { if (manual) say("Couldn't check. Try again."); } }
+onAuthStateChanged(auth, (u) => {
+  if (!u) { location.href = "login.html"; return; }
+  me = u; $("vemail").textContent = u.email;
+  if (u.emailVerified) return done();
+  poll = setInterval(() => check(false), 4000);
+});
+$("check").onclick = () => check(true);
+$("resend").onclick = async () => { try { await sendVerification(me); say("Sent! Check your inbox and spam."); cooldown($("resend"), "Resend email", 60); } catch (e) { say(e.code === "auth/too-many-requests" ? "Too many requests. Wait a few minutes." : "Couldn't send. Try again shortly."); } };
+$("out").onclick = async (e) => { e.preventDefault(); await logOut(); location.href = "login.html"; };
+if (EMAIL_OTP_ENABLED) {
+  $("otp-wrap").style.display = "block";
+  $("otp-send").onclick = async () => { try { await requestEmailOtp(); say("Code sent. It lasts 10 minutes."); cooldown($("otp-send"), "Email me a code", 60); } catch (e) { say(e.message || "Couldn't send a code."); } };
+  $("otp-go").onclick = async () => { try { if (await verifyEmailOtp($("otp").value)) done(); else say("Still not verified. Try again."); } catch (e) { say(e.message || "Wrong code."); } };
+}
+</script></body></html>

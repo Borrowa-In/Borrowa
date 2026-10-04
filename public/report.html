@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Report — Borrowa</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="Report a listing, request or member on Borrowa." />
+<meta property="og:title" content="Report — Borrowa" />
+<meta property="og:description" content="Report a listing, request or member on Borrowa." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>.legal{max-width:760px;margin:32px auto;padding:0 18px 48px;line-height:1.65}.legal h1{font-family:'Playfair Display',serif}.legal h2{margin-top:28px;font-size:1.15rem}</style>
+</head><body>
+<nav class="nav"><div class="nav-inner"><a href="index.html" class="brand"><span class="brand-mark">B</span> Borrowa</a></div></nav>
+<main class="legal"><h1>Report a listing or member</h1>
+<div class="form-error" id="msg"></div>
+<form id="f" onsubmit="return false;"><div class="field"><label>What are you reporting?</label>
+<select name="kind"><option value="item">A listing</option><option value="user">A member</option><option value="request">A borrow request</option></select></div>
+<div class="field"><label>Listing or member ID (auto-filled from the link)</label><input name="target" maxlength="120" required /></div>
+<div class="field"><label>Reason</label><select name="reason"><option>Scam / fake</option><option>Unsafe or illegal item</option><option>Harassment</option><option>Inappropriate photo</option><option>Other</option></select></div>
+<div class="field"><label>Details (optional)</label><textarea name="details" maxlength="500" rows="4"></textarea></div>
+<button class="btn btn-primary" id="go">Send report</button></form></main>
+<footer class="site-footer"><div class="container"><span>© 2026 Borrowa</span><div class="footer-links"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="contact.html">Contact</a></div></div></footer>
+<script type="module">
+import { auth, db } from "./js/firebase-config.js";
+import { addDoc, collection, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+const q=new URLSearchParams(location.search), f=document.getElementById("f"), m=document.getElementById("msg");
+if(q.get("type"))f.kind.value=["user","request"].includes(q.get("type"))?q.get("type"):"item"; if(q.get("id"))f.target.value=q.get("id");
+let me=null; onAuthStateChanged(auth,u=>me=u);
+f.addEventListener("submit",async()=>{ m.classList.add("show");
+  if(!me){m.textContent="Please log in to send a report.";return;}
+  try{await addDoc(collection(db,"reports"),{kind:f.kind.value,targetId:f.target.value.trim(),reason:f.reason.value,details:f.details.value.slice(0,500),reporterId:me.uid,status:"open",createdAt:serverTimestamp()});
+    m.textContent="Thanks. An admin will review this.";f.reset();}
+  catch(e){m.textContent="Couldn't send the report. Try again.";}});
+</script></body></html>

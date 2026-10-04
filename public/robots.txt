@@ -1,0 +1,8 @@
+# Borrowa
+User-agent: *
+Allow: /
+# Private / app-only pages
+Disallow: /admin.html
+Disallow: /admin-dashboard.html
+Disallow: /chat.html
+Disallow: /verify.html

@@ -1,0 +1,15 @@
+{
+  "firestore": { "rules": "config/firestore.dev.rules", "indexes": "config/firestore.indexes.json" },
+  "hosting": {
+    "public": "public",
+    "ignore": ["**/.*", "**/node_modules/**"],
+    "headers": [{ "source": "**", "headers": [{ "key": "Cache-Control", "value": "no-store" }] }]
+  },
+  "emulators": {
+    "auth": { "port": 9099 },
+    "firestore": { "port": 8080 },
+    "hosting": { "port": 5000 },
+    "ui": { "enabled": true, "port": 4000 },
+    "singleProjectMode": true
+  }
+}

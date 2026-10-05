@@ -99,7 +99,11 @@ export async function bindDevice(user) {
       // Admin's device: register this account as a tester (lifts verification / post caps)
       // and add it to the device list so banning the device still covers it.
       try { localStorage.setItem(UNLIMITED_FLAG, "1"); } catch (e) {}
-      await setDoc(doc(db, "testers", user.uid), { deviceId: getDeviceId() });
+      // Only create the tester record the first time. Writing it again counts as an UPDATE, which the
+      // rules refuse (permission-denied), and that is what blocked every repeat login on this device.
+      const tref = doc(db, "testers", user.uid);
+      const tsnap = await getDoc(tref).catch(() => null);
+      if (!tsnap || !tsnap.exists()) await setDoc(tref, { deviceId: getDeviceId() });
       if (!(d.uids || []).includes(user.uid)) await updateDoc(ref, { uids: arrayUnion(user.uid), [emailPath]: myEmail });
       return;
     }

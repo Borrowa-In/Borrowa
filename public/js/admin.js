@@ -1,5 +1,5 @@
 import { guardAdminPage, logOut } from "./auth.js";
-import { setDevicesBanned } from "./device.js";
+import { setDevicesBanned, markDeviceUnlimited, deviceStatus } from "./device.js";
 import { db, auth, ADMIN_EMAIL } from "./firebase-config.js";
 import {
   collection,
@@ -206,6 +206,15 @@ async function initAdminDashboard() {
   if (btn) btn.addEventListener("click", () => refreshLeaderboard(true));
   await loadAdminStatsAndListings();
   await loadAdminUsers();
+  // Unlimited-device status for THIS browser (re-flags it if the record was lost).
+  (async () => {
+    const el = document.getElementById("device-status"); if (!el) return;
+    try { await markDeviceUnlimited(auth.currentUser); } catch (e) {}
+    const st = await deviceStatus();
+    el.textContent = st.error ? `Couldn't read this device (${st.error}) - publish the latest firestore.rules.`
+      : st.unlimited ? "✅ This browser is your unlimited device: any number of accounts can join here."
+      : "⚠️ This browser is NOT flagged unlimited yet. Reload this page while signed in as the main admin.";
+  })();
   refreshLeaderboard(false); // after the page is usable, so it never slows the dashboard down
 }
 
@@ -447,11 +456,6 @@ function renderUsersTable(usersArray) {
                 )
           }
           ${
-            !user.isAdmin && !isPermanentAdmin
-              ? `<button class="btn-action ${user.rank === 'moderator' ? 'btn-outline-action' : 'btn-primary-action'} toggle-mod-btn" data-uid="${escapeHtml(user.uid)}" data-action="${user.rank === 'moderator' ? 'remove' : 'make'}">${user.rank === 'moderator' ? 'Remove Moderator' : 'Make Moderator'}</button>`
-              : ""
-          }
-          ${
             !isPermanentAdmin
               ? `<button class="btn-action ${user.banned ? 'btn-outline-action' : 'btn-danger-action'} toggle-ban-btn" data-uid="${escapeHtml(user.uid)}" data-action="${user.banned ? 'unban' : 'ban'}">${user.banned ? 'Unban' : 'Ban'}</button>`
               : ""
@@ -517,26 +521,6 @@ function renderUsersTable(usersArray) {
       } catch (err) {
         alert("Failed to update admin status. Check permissions.");
         console.error(err);
-      }
-    });
-  });
-
-  // Make / remove a moderator. The moderator rank (users.rank) is what the security rules look at,
-  // so this one write gives the name tag AND the report-review permission, and nothing else.
-  document.querySelectorAll(".toggle-mod-btn").forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      const uid = e.currentTarget.getAttribute("data-uid");
-      const make = e.currentTarget.getAttribute("data-action") === "make";
-      const user = allUsersCache.find((u) => u.uid === uid);
-      if (make && !confirm(`Make ${user ? user.name || "this member" : "this member"} a Moderator? They will be able to review reports and mark them as a violation or a false report. They can't delete or ban anything.`)) return;
-      try {
-        await updateDoc(doc(db, "users", uid), { rank: make ? "moderator" : null });
-        refreshLeaderboard(true);
-        alert(make ? "Moderator rank given. They'll see a Moderation link in the menu." : "Moderator rank removed.");
-        loadAdminUsers();
-      } catch (err) {
-        console.error(err);
-        alert("Failed to change the moderator rank. Check permissions and that the latest firestore.rules are published.");
       }
     });
   });

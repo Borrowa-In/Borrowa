@@ -110,6 +110,23 @@ export function nameCardHtml(name, tier) {
   </span>`;
 }
 
+// The look of a post made by this tier, taken from the rank's own saved colours
+// (so a rank restyled in the admin panel restyles its posts too). Newcomers keep the plain card.
+export function postLookForTier(tier) {
+  if (!tier || tier.key === "none") return null;
+  return { bg: tier.bg, color: tier.color, border: tier.border, glow: tier.glow };
+}
+
+// Same, for the Admin rank (uses the colours saved for "admin", or the built-in green).
+export function adminPostLook() {
+  return {
+    bg: adminLook ? adminLook.bg : "linear-gradient(135deg,#0a1a10,#14632f)",
+    color: adminLook ? adminLook.color : "#ffffff",
+    border: adminLook ? adminLook.border : "#2da45a",
+    glow: adminLook ? adminLook.glow : "0 6px 18px rgba(20,99,47,.22)",
+  };
+}
+
 // The "Admin" rank. It is not a points tier: it only appears on posts made by
 // admins (the flag is checked by firestore.rules, so nobody else can set it).
 export function adminBadgeHtml(small = false) {

@@ -1326,3 +1326,9 @@ body::before {
   color: rgba(120, 120, 120, .03);
   pointer-events: none; z-index: 1;
 }
+
+/* Request / listing posts wear their poster's rank colours */
+.req-card.ranked h3, .req-card.ranked .req-details, .req-card.ranked .req-meta,
+.req-card.ranked .req-meta span b, .req-card.ranked .req-who { color: inherit; }
+.req-card.ranked .req-who { border-top-color: rgba(128,128,128,.3); display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.req-who .name-tag-plain { font-size: 12.5px; }

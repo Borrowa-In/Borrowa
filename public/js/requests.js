@@ -6,6 +6,7 @@ import {
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getOrCreateChat } from "./chat.js";
 import { getUserProfile, isAdminUser, needsVerification } from "./auth.js";
+import { loadRankData, peekRankData, nameTagHtml, postLookForTier, TIERS } from "./ranks.js";
 
 // Borrow requests: a member posts something they need, neighbors who have
 // it tap "I can lend this", which records the offer and opens a chat with
@@ -81,6 +82,7 @@ async function loadRequests() {
     return;
   }
   render();
+  ensureRanks();
 }
 
 function visibleRequests() {
@@ -110,7 +112,21 @@ function render() {
   list.forEach((r) => gridEl.appendChild(createCard(r)));
 }
 
+// Poster ranks, so each request card wears its poster's rank colours and name tag.
+let rankMembers = new Map();
+{ const known = peekRankData(); if (known) rankMembers = known.members; }
+function ensureRanks() {
+  loadRankData().then((d) => {
+    const changed = d.members !== rankMembers;
+    rankMembers = d.members;
+    if (changed && allRequests.length) render();
+  }).catch(() => {});
+}
+
 function createCard(r) {
+  const posterTier = (rankMembers.get(r.userId) || {}).tier || TIERS[0];
+  const look = postLookForTier(posterTier);
+  const posterName = r.userName || "Neighbor";
   const isOwner = currentUser && r.userId === currentUser.uid;
   const status = r.status || "open";
   const offers = r.offerCount || 0;
@@ -118,7 +134,8 @@ function createCard(r) {
   const late = status === "open" && r.neededBy && r.neededBy < todayStr();
 
   const card = document.createElement("div");
-  card.className = "req-card" + (isOwner ? " mine" : "");
+  card.className = "req-card" + (isOwner ? " mine" : "") + (look ? " ranked" : "");
+  if (look) card.style.cssText = `background:${look.bg};color:${look.color};border:2px solid ${look.border};box-shadow:${look.glow};`;
   card.innerHTML = `
     <div class="req-card-top">
       <h3>${escapeHtml(r.title)}</h3>
@@ -133,7 +150,7 @@ function createCard(r) {
     </div>
     <div class="req-actions"></div>
     <div class="req-who">
-      ${isOwner ? "You" : escapeHtml(r.userName || "Neighbor")} · ${timeAgo(r.createdAt)}
+      ${isOwner ? `You ${nameTagHtml(posterName, posterTier, true)}` : nameTagHtml(posterName, posterTier, true)} · ${timeAgo(r.createdAt)}
       ${offers ? ` · ${offers} offer${offers === 1 ? "" : "s"}` : ""}
     </div>`;
 

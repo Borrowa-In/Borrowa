@@ -11,7 +11,7 @@ import { buildUnclaimUpdate, buildReturnUpdate } from "./item-status.js";
 import { notifyPosterOfClaim, initClaimNotifications } from "./notifications.js";
 import { renderNavProfileButton } from "./nav-profile.js";
 import { saveNavCache, clearNavCache } from "./nav-cache.js";
-import { loadRankData, peekRankData, tierBadgeHtml, adminBadgeHtml, TIERS } from "./ranks.js";
+import { loadRankData, peekRankData, tierBadgeHtml, adminBadgeHtml, nameTagHtml, postLookForTier, adminPostLook, TIERS } from "./ranks.js";
 import { isAdminUser, needsVerification, isTester } from "./auth.js";
 import { getCurrentPositionSafe, distanceMeters } from "./geo.js";
 import { recordLoginIp, isIpBanned } from "./ip-guard.js";
@@ -1196,24 +1196,31 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
 
   const hasPhoto = !!(item.hasPhoto || safeImageUrl(item.photoURL));
   const photoHtml = hasPhoto
-    ? `<div style="font-size:12px;color:#6b7280;margin-bottom:10px;">📷 Photo · tap to view</div>`
+    ? `<div style="font-size:12px;color:inherit;opacity:.8;margin-bottom:10px;">📷 Photo · tap to view</div>`
     : "";
 
   // Admin posts show the Admin rank (never a points tier) and may carry the
   // admin's own colours. Everyone else gets their normal rank styling.
   const isAdminPost = item.adminPost === true;
   const ps = isAdminPost ? cleanPostStyle(item.postStyle) : null;
-  const accent = (ps && ps.border) || (isAdminPost ? ADMIN_STYLE_DEFAULTS.border : "#1f8a47");
-  const titleColor = (ps && ps.title) || ADMIN_STYLE_DEFAULTS.title;
-  const bodyColor = (ps && ps.text) || "";
-  const cardLook = isAdminPost
-    ? `background: ${postBgCss(ps) || "linear-gradient(160deg,#fff 40%,#e6f6ec 100%)"}; border: 2px solid ${accent}; box-shadow: 0 6px 18px rgba(20,99,47,.22);`
-    : (ownerTier.key !== "none" ? `background: ${ownerTier.card}; border: 2px solid ${ownerTier.border}; box-shadow: ${ownerTier.glow};` : "");
+  // Card colours come from the poster's rank (the same colours saved for that rank in the admin
+  // panel). An admin's own custom post colours still win on their posts; Newcomers stay plain.
+  const adminOwnStyle = !!(ps && ps.bg);
+  const look = isAdminPost ? (adminOwnStyle ? null : adminPostLook()) : postLookForTier(ownerTier);
+  const accent = (ps && ps.border) || (look ? look.border : (isAdminPost ? ADMIN_STYLE_DEFAULTS.border : "#1f8a47"));
+  const titleColor = (ps && ps.title) || (look ? look.color : ADMIN_STYLE_DEFAULTS.title);
+  const bodyColor = (ps && ps.text) || (look ? look.color : "");
+  const cardLook = adminOwnStyle
+    ? `background: ${postBgCss(ps)}; border: 2px solid ${accent}; box-shadow: 0 6px 18px rgba(20,99,47,.22); color: ${bodyColor || "#111827"};`
+    : (look ? `background: ${look.bg}; color: ${look.color}; border: 2px solid ${look.border}; box-shadow: ${look.glow};` : "");
   const descColor = bodyColor || "#4b5563";
   const infoColor = bodyColor || "#6b7280";
-  const rankLine = isAdminPost
-    ? `<div style="margin-bottom: 10px;">${adminBadgeHtml(true)} <span style="font-size: 11px; color: ${infoColor}; margin-left: 4px;">lender</span></div>`
-    : (ownerTier.key !== "none" ? `<div style="margin-bottom: 10px;">${tierBadgeHtml(ownerTier, true)} <span style="font-size: 11px; color: #6b7280; margin-left: 4px;">lender</span></div>` : "");
+  const posterName = item.userName || (ownerMember && ownerMember.name) || "Neighbor";
+  // Poster's username shown as their rank's name tag (icon + name on the rank colours).
+  const nameTag = isAdminPost
+    ? `<span style="font-weight:800;font-size:13px;color:${bodyColor || "#111827"};">${escapeHtml(posterName)}</span> ${adminBadgeHtml(true)}`
+    : nameTagHtml(posterName, ownerTier, true);
+  const rankLine = `<div style="margin-bottom: 10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${nameTag} <span style="font-size: 11px; color: ${infoColor}; opacity:.85;">${isAdminPost ? "lender" : (ownerTier.key !== "none" ? escapeHtml(ownerTier.name) + " · lender" : "lender")}</span></div>`;
 
   card.innerHTML = `
     <div class="rank-card rank-card-${isAdminPost ? "admin" : ownerTier.key}" style="padding: 20px; border-radius: 12px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; ${cardLook}">
@@ -1233,7 +1240,7 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
             <div class="owner-actions-${docId}" style="display: flex; gap: 6px;"></div>
           </div>
         </div>
-        <h3 class="item-title" style="color: ${isAdminPost ? titleColor : ""}; --accent: ${accent};">${escapeHtml(capFirst(item.title))}</h3>
+        <h3 class="item-title" style="color: ${look || adminOwnStyle ? titleColor : ""}; --accent: ${accent};">${escapeHtml(capFirst(item.title))}</h3>
         <p style="color: ${descColor}; font-size: 14px; margin-bottom: 14px; line-height: 1.4;">${escapeHtml(item.description || "No description provided.")}</p>
       </div>
       <div>
@@ -1399,27 +1406,33 @@ function openItemDetails(docId, item, isOwner, distanceMeters) {
   const isAdminPost = item.adminPost === true;
   const ps = isAdminPost ? cleanPostStyle(item.postStyle) : null;
   const accent = (ps && ps.border) || (isAdminPost ? ADMIN_STYLE_DEFAULTS.border : "#1f8a47");
-  const lender = item.userName || "Neighbor";
+  const lender = item.userName || (rankMembers.get(item.userId) || {}).name || "Neighbor";
+  const dAdminOwn = !!(ps && ps.bg);
+  const dLook = isAdminPost ? (dAdminOwn ? null : adminPostLook()) : postLookForTier(tier);
+  const dBg = dAdminOwn ? postBgCss(ps) : (dLook ? dLook.bg : "#fff");
+  const dText = (ps && ps.text) || (dLook ? dLook.color : "");
+  const dTitle = (ps && ps.title) || (dLook ? dLook.color : "");
+  const dBorder = dLook ? `border:2px solid ${dLook.border};` : "";
   const exp = item.expiresAt && item.expiresAt.toDate ? item.expiresAt.toDate().toLocaleString() : "";
-  const row = (icon, label, val) => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid #f1f5f2;font-size:14px;"><span>${icon}</span><span style="color:#6b7280;min-width:92px;">${label}</span><strong style="flex:1;color:#111;">${val}</strong></div>`;
+  const row = (icon, label, val) => `<div style="display:flex;gap:8px;padding:8px 0;border-bottom:1px solid ${dText ? "rgba(128,128,128,.28)" : "#f1f5f2"};font-size:14px;"><span>${icon}</span><span style="color:${dText || "#6b7280"};opacity:${dText ? ".8" : "1"};min-width:92px;">${label}</span><strong style="flex:1;color:${dText || "#111"};">${val}</strong></div>`;
   const o = document.createElement("div");
   o.id = "item-detail-overlay";
   o.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9000;padding:14px;";
-  o.innerHTML = `<div role="dialog" aria-modal="true" style="background:#fff;border-radius:16px;width:100%;max-width:640px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
+  o.innerHTML = `<div role="dialog" aria-modal="true" style="background:${dBg};${dText ? `color:${dText};` : ""}${dBorder}border-radius:16px;width:100%;max-width:640px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3);">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;padding:18px 20px 8px;">
       <div><div style="font-size:12px;font-weight:600;color:#0369a1;">${escapeHtml(item.category || "General")}</div>
-      <h2 class="item-title" style="margin:2px 0 0;font-size:24px;${isAdminPost ? `color:${(ps && ps.title) || ADMIN_STYLE_DEFAULTS.title};` : ""}--accent:${accent};">${escapeHtml(capFirst(item.title))}</h2></div>
+      <h2 class="item-title" style="margin:2px 0 0;font-size:24px;${dTitle ? `color:${dTitle};` : ""}--accent:${accent};">${escapeHtml(capFirst(item.title))}</h2></div>
       <button id="detail-x" aria-label="Close" style="border:0;background:#f1f5f2;border-radius:50%;width:34px;height:34px;font-size:18px;cursor:pointer;">×</button>
     </div>
     <div id="detail-photo" style="margin:6px 20px 0;"></div>
     <div style="padding:10px 20px 0;">
       <span style="font-size:12px;font-weight:700;padding:4px 9px;border-radius:6px;background:${isAvailable ? "#f1f6f2" : "#fef2f2"};color:${isAvailable ? "#14632f" : "#991b1b"};">${isAvailable ? qty.available + " of " + qty.total + " " + escapeHtml(qty.unit) + " available" : "Borrowed"}</span>
-      <p style="color:${(ps && ps.text) || "#374151"};line-height:1.55;margin:12px 0;white-space:pre-wrap;">${escapeHtml(item.description || "No description provided.")}</p>
+      <p style="color:${dText || "#374151"};line-height:1.55;margin:12px 0;white-space:pre-wrap;">${escapeHtml(item.description || "No description provided.")}</p>
       ${row("📍", "Pickup", escapeHtml(item.pickupLocation) + (distanceMeters !== null && distanceMeters !== undefined ? " · " + formatDistance(distanceMeters) : ""))}
       ${row("✨", "Condition", escapeHtml(item.condition))}
       ${row("🔢", "Quantity", qty.available + " / " + qty.total + " " + escapeHtml(qty.unit))}
       ${row("⏳", "Borrow for", "up to " + escapeHtml(item.borrowPeriod || "a week"))}
-      ${row("🧑", "Lender", escapeHtml(lender) + (isAdminPost ? " " + adminBadgeHtml(true) : (tier.key !== "none" ? " " + tierBadgeHtml(tier, true) : "")))}
+      ${row("🧑", "Lender", isAdminPost ? escapeHtml(lender) + " " + adminBadgeHtml(true) : nameTagHtml(lender, tier))}
       ${exp ? row("🕒", "Listing ends", escapeHtml(exp)) : ""}
     </div>
     <div id="detail-actions" style="display:flex;gap:8px;flex-wrap:wrap;padding:16px 20px 20px;"></div>

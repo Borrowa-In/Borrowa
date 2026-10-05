@@ -23,16 +23,32 @@ const UNLIMITED_FLAG = "borrowa_unlimited";
 export function isUnlimitedDevice() {
   try { return localStorage.getItem(UNLIMITED_FLAG) === "1"; } catch (e) { return false; }
 }
+// Make THIS browser the admin's unlimited device. The server record (devices/{id}.unlimited) is the
+// truth, so it is checked every time the admin signs in: if the record was deleted or reset, it is
+// re-flagged here instead of trusting the old localStorage flag. Returns true when the device is unlimited.
 export async function markDeviceUnlimited(user) {
-  if (!user || (user.email || "").toLowerCase() !== ADMIN_EMAIL) return;
-  if (isUnlimitedDevice()) return;
+  if (!user || (user.email || "").toLowerCase() !== ADMIN_EMAIL) return false;
   try {
     const ref = doc(db, "devices", getDeviceId());
     const snap = await getDoc(ref);
-    if (snap.exists()) await updateDoc(ref, { unlimited: true });
-    else await setDoc(ref, { uids: [], banned: false, unlimited: true, createdAt: serverTimestamp() });
+    if (!snap.exists()) await setDoc(ref, { uids: [], banned: false, unlimited: true, createdAt: serverTimestamp() });
+    else if (!snap.data().unlimited || snap.data().banned) await updateDoc(ref, { unlimited: true, banned: false });
     localStorage.setItem(UNLIMITED_FLAG, "1");
-  } catch (e) { console.warn("Couldn't flag this device as unlimited:", e); }
+    return true;
+  } catch (e) {
+    console.warn("Couldn't flag this device as unlimited:", e);
+    try { localStorage.removeItem(UNLIMITED_FLAG); } catch (e2) {}
+    return false;
+  }
+}
+
+// What the server says about this browser (for the admin page's status line).
+export async function deviceStatus() {
+  const id = getDeviceId();
+  try {
+    const snap = await getDoc(doc(db, "devices", id));
+    return { id, exists: snap.exists(), unlimited: snap.exists() && snap.data().unlimited === true, accounts: snap.exists() ? (snap.data().uids || []).length : 0 };
+  } catch (e) { return { id, error: (e && e.code) || "error" }; }
 }
 
 function readCookie() { const m = document.cookie.match(/(?:^|; )borrowa_device=([A-Za-z0-9-]{20,64})/); return m ? m[1] : null; }
@@ -56,6 +72,7 @@ export async function bindDevice(user) {
   try {
     const myEmail = (user.email || "").toLowerCase();
     const emailPath = `emails.${user.uid}`;
+    if (!(snap.exists() && snap.data().unlimited)) { try { localStorage.removeItem(UNLIMITED_FLAG); } catch (e) {} }
     if (!snap.exists()) { await setDoc(ref, { uids: [user.uid], emails: { [user.uid]: myEmail }, banned: false, createdAt: serverTimestamp() }); return; }
     const d = snap.data();
     if (d.banned) throw fail("device-banned", "This device has been blocked by an admin.");

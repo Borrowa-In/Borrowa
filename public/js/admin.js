@@ -15,7 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { buildUnclaimUpdate, buildForceClaimUpdate, resolveQuantityTotal } from "./item-status.js";
 import { isIpBanned, banIp, unbanIp } from "./ip-guard.js";
-import { TIERS, tierByKey, publishLeaderboard, leaderboardUpdatedAt } from "./ranks.js";
+import { TIERS, tierByKey, publishLeaderboard, leaderboardUpdatedAt, loadRankConfig } from "./ranks.js";
 
 // Local state arrays to allow real-time filtering
 let allListingsCache = [];
@@ -358,8 +358,13 @@ function renderListingsTable(itemsArray) {
   });
 }
 
+// Re-draw the members table when the main admin saves rank styles (so the Rank drop-down
+// shows new custom ranks straight away).
+document.addEventListener("borrowa-ranks-saved", () => { if (allUsersCache.length) renderUsersTable(allUsersCache); });
+
 async function loadAdminUsers() {
   const statUsers = document.getElementById("stat-total-users");
+  await loadRankConfig(); // custom ranks must be known before the Rank drop-down is built
 
   try {
     // Fetch the whole `admins` collection once instead of one extra
@@ -429,7 +434,7 @@ function renderUsersTable(usersArray) {
           ${TIERS.map((t) => `<option value="${t.key}" ${user.rank === t.key ? "selected" : ""}>${t.icon} ${t.name}</option>`).join("")}
         </select>
       </td>
-      <td><span class="badge ${user.isAdmin || isPermanentAdmin ? 'badge-admin' : 'badge-available'}">${user.isAdmin || isPermanentAdmin ? 'Admin' : 'Member'}</span></td>
+      <td><span class="badge ${user.isAdmin || isPermanentAdmin ? 'badge-admin' : 'badge-available'}">${user.isAdmin || isPermanentAdmin ? 'Admin' : (user.rank === 'moderator' ? '🛡️ Moderator' : 'Member')}</span></td>
       <td>
         <div style="display: flex; gap: 6px; flex-wrap: wrap;">
           <button class="btn-action btn-outline-action view-user-btn" data-uid="${escapeHtml(user.uid)}">Edit</button>
@@ -440,6 +445,11 @@ function renderUsersTable(usersArray) {
                   ? `<button class="btn-action btn-outline-action toggle-admin-btn" data-uid="${escapeHtml(user.uid)}" data-action="demote">Revoke Admin</button>`
                   : `<button class="btn-action btn-primary-action toggle-admin-btn" data-uid="${escapeHtml(user.uid)}" data-action="promote">Make Admin</button>`
                 )
+          }
+          ${
+            !user.isAdmin && !isPermanentAdmin
+              ? `<button class="btn-action ${user.rank === 'moderator' ? 'btn-outline-action' : 'btn-primary-action'} toggle-mod-btn" data-uid="${escapeHtml(user.uid)}" data-action="${user.rank === 'moderator' ? 'remove' : 'make'}">${user.rank === 'moderator' ? 'Remove Moderator' : 'Make Moderator'}</button>`
+              : ""
           }
           ${
             !isPermanentAdmin
@@ -464,7 +474,7 @@ function renderUsersTable(usersArray) {
         refreshLeaderboard(true);
         if (user) user.rank = key || null;
         const t = tierByKey(key);
-        alert(t ? `${user ? user.name || "User" : "User"} is now ${t.icon} ${t.name}.` : "Rank reset to automatic (by points).");
+        alert(t ? `${user ? user.name || "User"  : "User"} is now ${t.icon} ${t.name}.${key === "moderator" ? " They can now review reports." : ""}` : "Rank reset to automatic (by points).");
       } catch (err) {
         console.error("Failed to set rank:", err);
         alert("Failed to set rank. Make sure the updated firestore.rules are published.");
@@ -507,6 +517,26 @@ function renderUsersTable(usersArray) {
       } catch (err) {
         alert("Failed to update admin status. Check permissions.");
         console.error(err);
+      }
+    });
+  });
+
+  // Make / remove a moderator. The moderator rank (users.rank) is what the security rules look at,
+  // so this one write gives the name tag AND the report-review permission, and nothing else.
+  document.querySelectorAll(".toggle-mod-btn").forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      const uid = e.currentTarget.getAttribute("data-uid");
+      const make = e.currentTarget.getAttribute("data-action") === "make";
+      const user = allUsersCache.find((u) => u.uid === uid);
+      if (make && !confirm(`Make ${user ? user.name || "this member" : "this member"} a Moderator? They will be able to review reports and mark them as a violation or a false report. They can't delete or ban anything.`)) return;
+      try {
+        await updateDoc(doc(db, "users", uid), { rank: make ? "moderator" : null });
+        refreshLeaderboard(true);
+        alert(make ? "Moderator rank given. They'll see a Moderation link in the menu." : "Moderator rank removed.");
+        loadAdminUsers();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to change the moderator rank. Check permissions and that the latest firestore.rules are published.");
       }
     });
   });

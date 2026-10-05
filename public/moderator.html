@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="author" content="Shourya(Shadow)" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Moderation — Borrowa</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<meta name="robots" content="noindex" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="Moderator tools for Borrowa." />
+<meta property="og:title" content="Moderation — Borrowa" />
+<meta property="og:description" content="Moderator tools for Borrowa." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Browse</a>
+      <a href="requests.html" class="nav-link">Requests</a>
+      <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+      <a href="chat.html" class="nav-link">Messages</a>
+    </div>
+    <div class="nav-actions">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="nav-post-btn" class="btn btn-primary btn-sm">+ Lend item</button>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <div class="mod-wrap">
+    <div class="page-header">
+      <h1>🛡️ Moderation</h1>
+      <p class="mod-note">Review reports and tell the admins what you found. Pick <b>Violation</b> if the report is right, or <b>False report</b> if it isn't. Your verdict goes to the admins, who decide what happens next. You can't delete or ban anything yourself. Reports about conversations stay private to admins and don't appear here.</p>
+    </div>
+    <div class="mod-tabs">
+      <button type="button" class="mod-tab active" data-view="todo" id="mod-tab-todo">To review <span id="mod-todo-count"></span></button>
+      <button type="button" class="mod-tab" data-view="mine" id="mod-tab-mine">My reviews</button>
+    </div>
+    <div id="mod-list"><div class="mod-empty">Loading…</div></div>
+  </div>
+</div>
+
+<script type="module">
+  import { guardPage } from "./js/auth.js";
+  guardPage();
+</script>
+<script type="module" src="js/nav-cache.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/moderator.js"></script>
+<script type="module" src="js/verify-banner.js"></script>
+<script src="js/prefetch.js" defer></script>
+<script src="js/mobile-nav.js" defer></script>
+<!-- Shourya(Shadow) -->
+<div class="sw-mark" aria-hidden="true" data-author="Shourya(Shadow)">Shourya(Shadow)</div>
+</body>
+</html>

@@ -4,6 +4,6 @@
   "scripts": {
     "dev": "firebase emulators:start --config firebase.dev.json --project ecoshare-547fa",
     "sync-dev-rules": "python3 scripts/make_dev_rules.py",
-    "test": "node tests/points.test.mjs && node tests/push.test.mjs && node tests/push-functions.test.cjs && node tests/sw.test.cjs && node tests/push-poller.test.mjs"
+    "test": "node tests/points.test.mjs && node tests/push.test.mjs && node tests/push-functions.test.cjs && node tests/sw.test.cjs && node tests/push-poller.test.mjs && node tests/rank-style.test.mjs && node tests/moderator.test.mjs"
   }
 }

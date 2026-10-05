@@ -19,6 +19,8 @@ import { initE2ee } from "./e2ee.js";
 import { getOrCreateChat } from "./chat.js";
 import { mountPushPrompt, refreshPushToken, forgetPushOnThisDevice } from "./push.js";
 import { itemArtHtml } from "./art.js";
+import { createColorStudio } from "./color-studio.js";
+import { postBgCss, clampAngle } from "./rank-style.js";
 
 // Escapes HTML-significant characters before untrusted data (item titles,
 // descriptions, locations, conditions, poster names, etc.) gets interpolated
@@ -46,10 +48,13 @@ function safeHex(c) { return typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c
 function cleanPostStyle(st) {
   if (!st || typeof st !== "object") return null;
   const out = {};
-  for (const k of ["bg", "border", "title", "text"]) { const v = safeHex(st[k]); if (v) out[k] = v; }
+  for (const k of ["bg", "bg2", "border", "title", "text"]) { const v = safeHex(st[k]); if (v) out[k] = v; }
+  // A gradient needs a first colour; the angle only means something with two colours.
+  if (out.bg2 && !out.bg) delete out.bg2;
+  if (out.bg2 && st.angle !== undefined && st.angle !== null && st.angle !== "") out.angle = clampAngle(st.angle, 160);
   return Object.keys(out).length ? out : null;
 }
-const ADMIN_STYLE_DEFAULTS = { bg: "#ffffff", border: "#14632f", title: "#14632f", text: "#4b5563" };
+const ADMIN_STYLE_DEFAULTS = { bg: "#ffffff", bg2: "#e6f6ec", angle: 160, border: "#14632f", title: "#14632f", text: "#4b5563" };
 
 // Is the signed-in member an admin? Drives the admin-only post colour tools.
 let currentUserIsAdmin = false;
@@ -260,28 +265,74 @@ function syncAdminStyleBox() {
   const box = document.getElementById("admin-style-box");
   if (box) box.style.display = currentUserIsAdmin ? "block" : "none";
 }
+// One-click card looks for the inline colour studio: background gradient + matching border/title/text.
+const POST_STYLE_PRESETS = [
+  { name: "Sunset",   values: { bg: "#fff3e8", bg2: "#ffd2b0", border: "#f97316", title: "#9a3412", text: "#5b3a29" }, angle: 150 },
+  { name: "Ocean",    values: { bg: "#e6f7fd", bg2: "#b4e4f4", border: "#0891b2", title: "#0e5a73", text: "#31515c" }, angle: 150 },
+  { name: "Forest",   values: { bg: "#eaf8ef", bg2: "#b9e6c8", border: "#14632f", title: "#14632f", text: "#3b5a46" }, angle: 150 },
+  { name: "Berry",    values: { bg: "#f7edff", bg2: "#f8cfe8", border: "#a21caf", title: "#7e1fa8", text: "#5a3a66" }, angle: 150 },
+  { name: "Gold",     values: { bg: "#fffbe6", bg2: "#ffe28a", border: "#d97706", title: "#92400e", text: "#5c4a1e" }, angle: 150 },
+  { name: "Candy",    values: { bg: "#ffe9ef", bg2: "#ffd3c2", border: "#ec4899", title: "#9d174d", text: "#6b3a4a" }, angle: 150 },
+  { name: "Mint",     values: { bg: "#e5fbf4", bg2: "#b3efd3", border: "#11998e", title: "#0b6b61", text: "#2f5a53" }, angle: 150 },
+  { name: "Midnight", values: { bg: "#0f2027", bg2: "#2c5364", border: "#38bdf8", title: "#ffffff", text: "#cbd5e1" }, angle: 150 },
+  { name: "Royal",    values: { bg: "#41295a", bg2: "#2f0743", border: "#c4b5fd", title: "#ffffff", text: "#e9d5ff" }, angle: 150 },
+  { name: "Fire",     values: { bg: "#fff0e6", bg2: "#ffc9a8", border: "#ef3b36", title: "#b91c1c", text: "#6b3a2f" }, angle: 150 },
+];
+let postStyleStudio = null;
+function readStyleFields() {
+  const f = postItemForm; const g = (n, d) => (f && f.elements[n] ? f.elements[n].value : d);
+  return { bg: g("styleBg", ""), bg2: g("styleBg2", ""), angle: g("styleAngle", ""), border: g("styleBorder", ""), title: g("styleTitle", ""), text: g("styleText", "") };
+}
 function updateAdminStylePreview() {
   const f = postItemForm; const pv = document.getElementById("admin-style-preview");
   if (!f || !pv) return;
   const on = document.getElementById("admin-style-on");
-  const v = (n, d) => safeHex(f.elements[n] && f.elements[n].value) || d;
   const use = !!(on && on.checked);
-  const bg = use ? v("styleBg", ADMIN_STYLE_DEFAULTS.bg) : ADMIN_STYLE_DEFAULTS.bg;
-  const bd = use ? v("styleBorder", ADMIN_STYLE_DEFAULTS.border) : ADMIN_STYLE_DEFAULTS.border;
+  const st = cleanPostStyle(readStyleFields()) || {};
+  const bg = use ? (postBgCss({ ...st, bg: st.bg || ADMIN_STYLE_DEFAULTS.bg }) || ADMIN_STYLE_DEFAULTS.bg) : ADMIN_STYLE_DEFAULTS.bg;
+  const bd = use ? (st.border || ADMIN_STYLE_DEFAULTS.border) : ADMIN_STYLE_DEFAULTS.border;
   pv.style.background = bg; pv.style.border = "2px solid " + bd;
   const t = pv.querySelector(".item-title"); const p = pv.querySelector("p");
-  if (t) { t.style.color = use ? v("styleTitle", ADMIN_STYLE_DEFAULTS.title) : ADMIN_STYLE_DEFAULTS.title; t.style.setProperty("--accent", bd); }
-  if (p) p.style.color = use ? v("styleText", ADMIN_STYLE_DEFAULTS.text) : ADMIN_STYLE_DEFAULTS.text;
+  if (t) { t.style.color = use ? (st.title || ADMIN_STYLE_DEFAULTS.title) : ADMIN_STYLE_DEFAULTS.title; t.style.setProperty("--accent", bd); }
+  if (p) p.style.color = use ? (st.text || ADMIN_STYLE_DEFAULTS.text) : ADMIN_STYLE_DEFAULTS.text;
+}
+function writeStyleFields(state, announce) {
+  const f = postItemForm; if (!f) return;
+  const v = state.values;
+  f.elements.styleBg.value = v.bg; f.elements.styleBg2.value = state.gradientOn ? v.bg2 : "";
+  f.elements.styleAngle.value = state.angle; f.elements.styleBorder.value = v.border;
+  f.elements.styleTitle.value = v.title; f.elements.styleText.value = v.text;
+  // Tell the form something style-related changed (turns "use my colors" on and refreshes the preview).
+  if (announce) f.elements.styleBg.dispatchEvent(new Event("input", { bubbles: true }));
+}
+function mountPostStyleStudio() {
+  const root = document.getElementById("admin-style-studio");
+  if (!root || postStyleStudio) return;
+  postStyleStudio = createColorStudio(root, {
+    slots: [
+      { key: "bg", label: "Card colour" }, { key: "bg2", label: "Second colour" },
+      { key: "border", label: "Border" }, { key: "title", label: "Title" }, { key: "text", label: "Text" },
+    ],
+    values: ADMIN_STYLE_DEFAULTS, angle: ADMIN_STYLE_DEFAULTS.angle,
+    gradientToggle: { slot: "bg2", label: "Gradient background", on: false },
+    presets: POST_STYLE_PRESETS,
+    onChange: (state) => writeStyleFields(state, true),
+  });
 }
 function loadAdminStyleFields(editData) {
   const f = postItemForm; if (!f) return;
+  mountPostStyleStudio();
   const st = editData ? cleanPostStyle(editData.postStyle) : null;
   const on = document.getElementById("admin-style-on");
   if (on) on.checked = !!st;
-  f.elements.styleBg.value = (st && st.bg) || ADMIN_STYLE_DEFAULTS.bg;
-  f.elements.styleBorder.value = (st && st.border) || ADMIN_STYLE_DEFAULTS.border;
-  f.elements.styleTitle.value = (st && st.title) || ADMIN_STYLE_DEFAULTS.title;
-  f.elements.styleText.value = (st && st.text) || ADMIN_STYLE_DEFAULTS.text;
+  const state = {
+    values: { bg: (st && st.bg) || ADMIN_STYLE_DEFAULTS.bg, bg2: (st && st.bg2) || ADMIN_STYLE_DEFAULTS.bg2,
+      border: (st && st.border) || ADMIN_STYLE_DEFAULTS.border, title: (st && st.title) || ADMIN_STYLE_DEFAULTS.title, text: (st && st.text) || ADMIN_STYLE_DEFAULTS.text },
+    angle: st && st.angle !== undefined ? st.angle : ADMIN_STYLE_DEFAULTS.angle,
+    gradientOn: !!(st && st.bg2),
+  };
+  writeStyleFields(state, false);
+  if (postStyleStudio) postStyleStudio.set(state);
   updateAdminStylePreview();
 }
 if (postItemForm) {
@@ -667,14 +718,27 @@ onAuthStateChanged(auth, async (user) => {
       const userSnap = await getDoc(doc(db, "users", user.uid));
       const userData = userSnap.exists() ? userSnap.data() : {};
       currentUserBanned = !!userData.banned;
+      // Moderators (rank given by an admin) get a link to the report-review page. Admins already have the Dashboard.
+      const isMod = userData.rank === "moderator" && !userData.banned && !isAdmin;
+      let modBtn = document.getElementById("nav-moderator-btn");
+      if (isMod && navContainer && !modBtn) {
+        modBtn = document.createElement("a");
+        modBtn.id = "nav-moderator-btn";
+        modBtn.href = "moderator.html";
+        modBtn.textContent = "Moderation";
+        modBtn.style.cssText = "color: #fff; text-decoration: none; font-weight: 650; background: linear-gradient(135deg,#3730a3,#0e7490); padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center;";
+        navContainer.appendChild(modBtn);
+      } else if (!isMod && modBtn) {
+        modBtn.remove();
+      }
       const navName = userData.name || user.displayName || (user.email || "").split("@")[0];
       renderNavProfileButton({ name: navName });
-      saveNavCache({ name: navName, admin: !!isAdmin, tierKey: "none", points: 0 });
+      saveNavCache({ name: navName, admin: !!isAdmin, mod: isMod, tierKey: "none", points: 0 });
       // Add the member's rank tier to the menu once points are worked out.
       loadRankData().then(({ members }) => {
         const me = members.get(user.uid);
         renderNavProfileButton({ name: navName, tier: me ? me.tier : TIERS[0], points: me ? me.points : 0 });
-        saveNavCache({ name: navName, admin: !!isAdmin, tierKey: me ? me.tier.key : "none", points: me ? me.points : 0 });
+        saveNavCache({ name: navName, admin: !!isAdmin, mod: isMod, tierKey: me ? me.tier.key : "none", points: me ? me.points : 0 });
       }).catch(() => {});
       if (currentUserBanned) {
         showNotification("Your account has been restricted by an admin. You can browse, but can't lend, borrow, or chat.", "error");
@@ -777,8 +841,8 @@ if (postItemForm) {
       if (currentUserIsAdmin && currentUser) {
         adminStyleOn = !!(document.getElementById("admin-style-on") || {}).checked;
         adminStyle = adminStyleOn ? cleanPostStyle({
-          bg: formData.get("styleBg"), border: formData.get("styleBorder"),
-          title: formData.get("styleTitle"), text: formData.get("styleText"),
+          bg: formData.get("styleBg"), bg2: formData.get("styleBg2"), angle: formData.get("styleAngle"),
+          border: formData.get("styleBorder"), title: formData.get("styleTitle"), text: formData.get("styleText"),
         }) : null;
       }
 
@@ -1143,7 +1207,7 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
   const titleColor = (ps && ps.title) || ADMIN_STYLE_DEFAULTS.title;
   const bodyColor = (ps && ps.text) || "";
   const cardLook = isAdminPost
-    ? `background: ${(ps && ps.bg) || "linear-gradient(160deg,#fff 40%,#e6f6ec 100%)"}; border: 2px solid ${accent}; box-shadow: 0 6px 18px rgba(20,99,47,.22);`
+    ? `background: ${postBgCss(ps) || "linear-gradient(160deg,#fff 40%,#e6f6ec 100%)"}; border: 2px solid ${accent}; box-shadow: 0 6px 18px rgba(20,99,47,.22);`
     : (ownerTier.key !== "none" ? `background: ${ownerTier.card}; border: 2px solid ${ownerTier.border}; box-shadow: ${ownerTier.glow};` : "");
   const descColor = bodyColor || "#4b5563";
   const infoColor = bodyColor || "#6b7280";

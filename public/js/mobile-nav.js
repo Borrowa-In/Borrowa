@@ -22,7 +22,7 @@
     });
   }
 
-  var ICONS = { "home.html": "🏠", "requests.html": "🙋", "leaderboard.html": "🏆", "chat.html": "💬", "admin.html": "🛡️", "index.html": "🏠" };
+  var ICONS = { "home.html": "🏠", "requests.html": "🙋", "leaderboard.html": "🏆", "chat.html": "💬", "admin.html": "🛡️", "moderator.html": "🛡️", "index.html": "🏠" };
   function iconFor(href) {
     var f = String(href || "").split("?")[0].split("/").pop();
     return ICONS[f] || "•";

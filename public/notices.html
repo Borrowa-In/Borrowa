@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="author" content="Shourya(Shadow)" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Notices — Borrowa</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<link rel="stylesheet" href="css/style.css" />
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>.nt-wrap{max-width:640px;margin:0 auto;padding-bottom:50px}.nt-meta{font-size:12px;color:#6b7280;margin:6px 4px 22px}.nt-empty{text-align:center;color:#6b7280;padding:50px 0}.nt-old{opacity:.6}</style>
+</head>
+<body>
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Browse</a>
+      <a href="requests.html" class="nav-link">Requests</a>
+      <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+      <a href="chat.html" class="nav-link">Messages</a>
+      <a href="notices.html" class="nav-link active">Notices</a>
+    </div>
+    <div class="nav-actions">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+<div class="container"><div class="nt-wrap">
+  <div class="page-header"><h1>📢 Notices</h1><p>Announcements from the Borrowa team meant for you.</p></div>
+  <div id="nt-list"><div class="nt-empty">Loading…</div></div>
+</div></div>
+<script type="module">import { guardPage } from "./js/auth.js"; guardPage();</script>
+<script type="module" src="js/nav-cache.js"></script>
+<script type="module" src="js/main.js"></script>
+<script type="module" src="js/notices-page.js"></script>
+<script src="js/prefetch.js" defer></script>
+<script src="js/mobile-nav.js" defer></script>
+</body>
+</html>

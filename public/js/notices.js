@@ -1,10 +1,10 @@
 // Notice board: shared pieces used by the composer (admin + moderator pages) and the home popup.
 // Notices live in Firestore `notices/{id}`. Only admins/moderators can post (see firestore.rules).
 import { auth, db } from "./firebase-config.js";
-import { TIERS, loadRankConfig } from "./ranks.js";
+import { TIERS, loadRankConfig, loadRankData } from "./ranks.js";
 import { GRADIENT_PRESETS } from "./rank-style.js";
 import {
-  collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, limit, serverTimestamp, Timestamp,
+  collection, addDoc, getDocs, getDoc, deleteDoc, doc, query, orderBy, limit, serverTimestamp, Timestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 export const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -177,4 +177,11 @@ export async function mountNoticeComposer(root, { isAdmin = false } = {}) {
     btn.disabled = false;
   });
   refresh();
+}
+
+// Which rank key does this member have? (assigned rank first, otherwise their points tier)
+export async function myRankKey(uid) {
+  try { const u = await getDoc(doc(db, "users", uid)); if (u.exists() && u.data().rank) return u.data().rank; } catch (e) {}
+  try { const d = await loadRankData(); const m = d.members.get(uid); if (m && m.tier) return m.tier.key; } catch (e) {}
+  return "none";
 }

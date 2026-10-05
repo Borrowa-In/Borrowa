@@ -696,8 +696,10 @@ onAuthStateChanged(auth, async (user) => {
   if (user) {
     refreshPushToken(user).catch(() => {}); // quietly keep this phone's alert token fresh
     const isAdmin = await isAdminUser(user);
+    const wasAdmin = currentUserIsAdmin;
     currentUserIsAdmin = !!isAdmin;
     syncAdminStyleBox();
+    if (currentUserIsAdmin && !wasAdmin) loadItems(); // admins see the whole website, not just the area around them
 
     if (isAdmin && navContainer && !adminBtn) {
       adminBtn = document.createElement("a");
@@ -1034,7 +1036,7 @@ async function loadItems(cacheOnly = false) {
       snapshot.docs.forEach((d) => {
         const x = d.data(), exp = x.expiresAt && x.expiresAt.toMillis ? x.expiresAt.toMillis() : 0;
         const inUse = (x.claims && x.claims.length) || x.claimedBy;
-        if (exp && exp < nowMs && !inUse) {
+        if (exp && exp < nowMs && !inUse && !currentUserIsAdmin) {
           if (meUid && x.userId === meUid) { deleteDoc(d.ref).catch(() => {}); if (x.hasPhoto) deleteDoc(doc(db, "itemPhotos", d.id)).catch(() => {}); }
           return;
         }
@@ -1106,7 +1108,7 @@ async function loadItems(cacheOnly = false) {
       const itemLocation = entry.item.location;
       const distance = viewerLocation && itemLocation ? distanceMeters(viewerLocation, itemLocation) : null;
       entry.distanceMeters = distance;
-      if (distance !== null && distance <= NEARBY_RADIUS_METERS) {
+      if (!currentUserIsAdmin && distance !== null && distance <= NEARBY_RADIUS_METERS) {
         nearbyItemsList.push(entry);
       } else {
         widerCommunityList.push(entry);
@@ -1151,7 +1153,7 @@ async function loadItems(cacheOnly = false) {
       nearbyItemsList.forEach(({ docId, item, isOwner, distanceMeters }) => {
         nearbySubgrid.appendChild(createItemCard(docId, item, isOwner, distanceMeters));
       });
-    } else if (!viewerLocation) {
+    } else if (!viewerLocation && !currentUserIsAdmin) {
       const nearbyNote = document.createElement("div");
       nearbyNote.style.cssText = "margin-bottom: 24px; width: 100%; grid-column: 1 / -1; font-size: 13px; color: #6b7280; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px; padding: 12px 16px;";
       nearbyNote.textContent = "📍 Enable location access in your browser to see items listed within 1km of you.";
@@ -1163,7 +1165,7 @@ async function loadItems(cacheOnly = false) {
       commSection.style.cssText = "width: 100%; grid-column: 1 / -1;";
       commSection.innerHTML = `
         <h2 style="font-size: 20px; font-weight: 700; color: #1f2937; margin-bottom: 16px; border-bottom: 2px solid #d5e3da; padding-bottom: 8px;">
-          🌍 All Items to Borrow (${widerCommunityList.length})
+          ${currentUserIsAdmin ? "🌍 All listings across the whole website" : "🌍 All Items to Borrow"} (${widerCommunityList.length})
         </h2>
         <div id="comm-subgrid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px;"></div>
       `;

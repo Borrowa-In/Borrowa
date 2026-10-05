@@ -3,22 +3,12 @@
 // but closing the site and coming back later does.
 import { auth, db } from "./firebase-config.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { collection, getDocs, getDoc, doc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { loadRankData } from "./ranks.js";
-import { noticeCardHtml, NOTICE_CSS, loadFonts } from "./notices.js";
+import { collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { noticeCardHtml, NOTICE_CSS, loadFonts, myRankKey } from "./notices.js";
 
 const SEEN = "borrowa_notices_seen";
 const seen = () => { try { return JSON.parse(sessionStorage.getItem(SEEN) || "[]"); } catch (e) { return []; } };
 const markSeen = (id) => { try { sessionStorage.setItem(SEEN, JSON.stringify([...new Set([...seen(), id])])); } catch (e) {} };
-
-async function myRankKey(uid) {
-  try {
-    const u = await getDoc(doc(db, "users", uid));
-    if (u.exists() && u.data().rank) return u.data().rank;
-  } catch (e) {}
-  try { const d = await loadRankData(); const m = d.members.get(uid); if (m && m.tier) return m.tier.key; } catch (e) {}
-  return "none";
-}
 
 function show(queue) {
   const n = queue.shift();

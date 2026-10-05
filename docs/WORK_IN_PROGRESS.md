@@ -30,3 +30,6 @@ BEFORE GOING LIVE
 # Bug sweep
 - Search box on Browse now filters as you type and also matches pickup location and category (the placeholder promised "title or location" but only title/description were checked, and only Enter triggered it).
 - Checked: every JS file parses, unit tests pass, no broken links/imports, all 13 pages load with no console errors and no sideways scroll on phone or desktop, admin posting saves a capitalised title + Admin flag + colours.
+
+# Ratings, disputes, urgent requests, impact page
+DONE: see "Plan items finished in the last pass" in docs/HANDOFF.md. Republish config/firestore.rules before using them.

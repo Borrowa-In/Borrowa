@@ -379,7 +379,8 @@ service cloud.firestore {
         request.resource.data.offerCount == 0 &&
         request.resource.data.offeredBy.size() == 0 &&
         request.resource.data.keys().hasOnly(['userId', 'userName', 'title', 'category', 'details', 'duration',
-          'neededBy', 'building', 'status', 'offerCount', 'offeredBy', 'createdAt']) &&
+          'neededBy', 'building', 'status', 'offerCount', 'offeredBy', 'createdAt', 'urgent']) &&
+        request.resource.data.get('urgent', false) is bool &&
         request.resource.data.title is string &&
         request.resource.data.title.size() > 0 &&
         request.resource.data.title.size() <= 80 &&
@@ -549,7 +550,11 @@ service cloud.firestore {
         request.resource.data.targetId is string && request.resource.data.targetId.size() <= 120 &&
         request.resource.data.details is string && request.resource.data.details.size() <= 500 &&
         (
-          (request.resource.data.kind in ['item', 'user', 'request'] && !('chatId' in request.resource.data) && !('chatKey' in request.resource.data) &&
+          (request.resource.data.kind in ['item', 'user', 'request', 'loan'] && !('chatId' in request.resource.data) && !('chatKey' in request.resource.data) &&
+            // A loan dispute can only be filed by the lender or the current borrower of that listing.
+            (request.resource.data.kind != 'loan' || (
+              get(/databases/$(database)/documents/items/$(request.resource.data.targetId)).data.userId == request.auth.uid ||
+              get(/databases/$(database)/documents/items/$(request.resource.data.targetId)).data.get('claimedBy', null) == request.auth.uid)) &&
             // One report per person per target (stops report flooding).
             id == request.resource.data.kind + '_' + request.resource.data.targetId + '_' + request.auth.uid) ||
           (request.resource.data.kind == 'chat' &&
@@ -692,6 +697,28 @@ service cloud.firestore {
         request.resource.data.updatedAt == request.time;
 
       allow delete: if request.auth != null && (request.auth.uid == resource.data.lenderId || isAdmin());
+    }
+
+
+    // ---------- ratings/{itemId_raterUid}: a short score + comment after a loan ----------
+    // The lender rates the borrower or the borrower rates the lender, once per listing, and a rating
+    // can never be edited. Ratings are shown on profiles/listings only; they do NOT feed leaderboard
+    // points (so colluding accounts cannot inflate rank with them). Only admins can remove one.
+    match /ratings/{rid} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && !isBanned() && isVerified() &&
+        request.resource.data.keys().hasOnly(['itemId', 'raterId', 'rateeId', 'score', 'comment', 'createdAt']) &&
+        rid == request.resource.data.itemId + '_' + request.auth.uid &&
+        request.resource.data.raterId == request.auth.uid &&
+        request.resource.data.rateeId != request.auth.uid &&
+        request.resource.data.score is int && request.resource.data.score >= 1 && request.resource.data.score <= 5 &&
+        request.resource.data.get('comment', '') is string && request.resource.data.get('comment', '').size() <= 200 &&
+        request.resource.data.createdAt == request.time &&
+        // one side of the loan must be the listing's lender
+        (get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.userId == request.auth.uid ||
+         get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.userId == request.resource.data.rateeId);
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     // ---------- pushTokens/{token} ----------

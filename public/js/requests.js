@@ -138,7 +138,7 @@ function createCard(r) {
   if (look) card.style.cssText = `background:${look.bg};color:${look.color};border:2px solid ${look.border};box-shadow:${look.glow};`;
   card.innerHTML = `
     <div class="req-card-top">
-      <h3>${escapeHtml(r.title)}</h3>
+      <h3>${r.urgent && status === "open" ? "🔥 " : ""}${escapeHtml(r.title)}</h3>
       <span class="badge ${status === "fulfilled" ? "badge-fulfilled" : "badge-open"}">${status === "fulfilled" ? "Fulfilled" : "Open"}</span>
     </div>
     <div><span class="badge badge-cat">${escapeHtml(r.category || "Misc")}</span></div>
@@ -328,6 +328,7 @@ form.addEventListener("submit", async (e) => {
       offerCount: 0,
       offeredBy: [],
       createdAt: serverTimestamp(),
+      urgent: !!(document.getElementById("req-urgent") || {}).checked,
     });
     closeModal();
     showToast("Request posted! Neighbors can now offer to lend it.");

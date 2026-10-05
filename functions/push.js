@@ -83,7 +83,7 @@ function requestMessage(req, id) {
   const where = clean(req.building, 40);
   return buildMessage({
     kind: "request", tag: `request-${id}`, url: "requests.html",
-    title: "A neighbour needs something",
+    title: req.urgent ? "Urgent: a neighbour needs something today" : "A neighbour needs something",
     body: where ? `${clean(req.title, 60)} \u00b7 ${where}` : clean(req.title, 80),
   });
 }

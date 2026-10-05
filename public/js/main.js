@@ -17,6 +17,8 @@ import { getCurrentPositionSafe, distanceMeters } from "./geo.js";
 import { recordLoginIp, isIpBanned } from "./ip-guard.js";
 import { initE2ee } from "./e2ee.js";
 import { getOrCreateChat } from "./chat.js";
+import { promptRating, loadRatingSummary, ratingText } from "./ratings.js";
+import { askAndDispute } from "./dispute.js";
 import { loadHandover, confirmStep, closeHandover, handoverStatusText } from "./handover.js";
 import { mountPushPrompt, refreshPushToken, forgetPushOnThisDevice } from "./push.js";
 import { itemArtHtml } from "./art.js";
@@ -611,6 +613,7 @@ if (claimConfirmBtn) {
 // --- STANDALONE LIVE STATS ---
 // Home-page numbers: items listed, items currently out on loan, members who
 // have taken part, and open borrow requests.
+const ratingCache = {};
 async function fetchLiveStats() {
   if (!document.getElementById("stat-items-listed")) return; // only the home page shows these
   try {
@@ -1241,7 +1244,7 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
   const nameTag = isAdminPost
     ? `<span style="font-weight:800;font-size:13px;color:${bodyColor || "#111827"};">${escapeHtml(posterName)}</span> ${adminBadgeHtml(true)}`
     : nameTagHtml(posterName, ownerTier, true);
-  const rankLine = `<div style="margin-bottom: 10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${nameTag} <span style="font-size: 11px; color: ${infoColor}; opacity:.85;">${isAdminPost ? "lender" : (ownerTier.key !== "none" ? escapeHtml(ownerTier.name) + " · lender" : "lender")}</span></div>`;
+  const rankLine = `<div style="margin-bottom: 10px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">${nameTag} <span style="font-size: 11px; color: ${infoColor}; opacity:.85;">${isAdminPost ? "lender" : (ownerTier.key !== "none" ? escapeHtml(ownerTier.name) + " · lender" : "lender")}</span> <span class="lender-rating-slot" style="font-size:11px;font-weight:700;color:${infoColor};"></span></div>`;
 
   card.innerHTML = `
     <div class="rank-card rank-card-${isAdminPost ? "admin" : ownerTier.key}" style="padding: 20px; border-radius: 12px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; ${cardLook}">
@@ -1351,6 +1354,10 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
           showNotification("Marked as returned. It's available to borrow again. ↩️", "success");
           fetchLiveStats();
           loadItems();
+          if (returningBorrower) {
+            const nm = (freshSnap.data().claimedByName) || "the borrower";
+            promptRating({ itemId: docId, rateeId: returningBorrower, rateeName: nm });
+          }
         } catch (e) {
           console.error("Failed to reopen listing:", e);
           showNotification("Couldn't update the listing.", "error");
@@ -1401,6 +1408,17 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
           }
         });
         actionsContainer.appendChild(chatBtn);
+
+        const disBtn = document.createElement("button");
+        disBtn.textContent = "⚠️ Dispute";
+        disBtn.style.cssText = "background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;";
+        disBtn.addEventListener("click", async () => {
+          disBtn.disabled = true;
+          try { if (await askAndDispute(docId)) showNotification("Dispute sent to the moderators. ⚠️", "success"); }
+          catch (e) { console.error(e); showNotification(e.code === "permission-denied" ? "You've already filed a dispute for this loan." : "Couldn't send the dispute.", "error"); }
+          disBtn.disabled = false;
+        });
+        actionsContainer.appendChild(disBtn);
       }
     }
 
@@ -1452,6 +1470,7 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
         try {
           await confirmStep({ itemId: docId, itemTitle: item.title, lenderId: item.userId, borrowerId: auth.currentUser.uid, step, note });
           showNotification("Saved. ✅", "success");
+          if (step === "borrowerReturnedAt") promptRating({ itemId: docId, rateeId: item.userId, rateeName: item.userName || "the lender" });
         } catch (e) { console.error(e); showNotification(e.message && e.message.startsWith("Confirm") ? e.message : "Couldn't save that.", "error"); b.disabled = false; }
         refresh();
       });
@@ -1466,12 +1485,30 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
       if (h && h.borrowerReturnedAt) { retBtn.disabled = true; retBtn.textContent = "↩️ Returned ✓"; }
       retBtn.disabled = retBtn.disabled || !(h && h.borrowerReceivedAt);
     };
-    stepWrap.append(recvBtn, retBtn, status);
+    const disBtn = document.createElement("button");
+    disBtn.textContent = "⚠️ Dispute";
+    disBtn.className = "btn btn-outline btn-sm";
+    disBtn.style.flex = "1";
+    disBtn.addEventListener("click", async () => {
+      disBtn.disabled = true;
+      try { if (await askAndDispute(docId)) showNotification("Dispute sent to the moderators. ⚠️", "success"); }
+      catch (e) { console.error(e); showNotification(e.code === "permission-denied" ? "You've already filed a dispute for this loan." : "Couldn't send the dispute.", "error"); }
+      disBtn.disabled = false;
+    });
+    stepWrap.append(recvBtn, retBtn, disBtn, status);
     footerActionContainer.appendChild(stepWrap);
     refresh();
   } else {
     footerActionContainer.innerHTML = `<button class="btn btn-outline btn-sm" disabled style="width: 100%; opacity: 0.6; cursor: not-allowed;">Currently Borrowed</button>`;
   }
+
+  // Lender's average rating, looked up once per lender and cached for the page.
+  ratingCache[item.userId] = ratingCache[item.userId] || loadRatingSummary(item.userId);
+  ratingCache[item.userId].then((sm) => {
+    if (!sm.count) return;
+    const rl = card.querySelector(".lender-rating-slot");
+    if (rl) rl.textContent = ratingText(sm);
+  });
 
   card.style.cursor = "pointer";
   card.addEventListener("click", (e) => {

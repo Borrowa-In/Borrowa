@@ -94,6 +94,7 @@ export async function mountNoticeComposer(root, { isAdmin = false } = {}) {
         <div><label class="l">Body font</label><select id="nbc-bfont">${fontOpts("inter")}</select></div>
       </div>
       <label class="l">Message</label>
+      <div style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:6px;padding:6px 8px;margin-bottom:6px;">Every signed-in member can read notices. Never put private information in one.</div>
       <textarea id="nbc-body" maxlength="800" placeholder="Write the notice…"></textarea>
       <div class="nbc-row">
         <div><label class="l">Text size (auto-fits your text)</label>

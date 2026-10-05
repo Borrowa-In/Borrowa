@@ -10,8 +10,8 @@ import {
 const body = document.getElementById("admin-reports-body");
 const countEl = document.getElementById("reports-count");
 const showAll = document.getElementById("reports-show-handled");
-const COLL = { item: "items", request: "borrowRequests", user: "users", chat: "users" };
-const LABEL = { item: "Listing", request: "Borrow request", user: "Member", chat: "Member (reported in chat)" };
+const COLL = { item: "items", request: "borrowRequests", user: "users", chat: "users", loan: "items" };
+const LABEL = { item: "Listing", request: "Borrow request", user: "Member", chat: "Member (reported in chat)", loan: "Loan dispute" };
 // Closing a report always erases any chat key the reporter shared.
 const closeReports = (g, status) => Promise.all(g.reports.map((r) =>
   updateDoc(doc(db, "reports", r.id), r.chatKey ? { status, chatKey: deleteField() } : { status })));
@@ -34,7 +34,7 @@ async function load() {
       try {
         const s = await getDoc(doc(db, COLL[g.kind] || "users", g.targetId));
         g.target = s.exists() ? s.data() : null;
-        if ((g.kind === "item" || g.kind === "request") && g.target?.userId) {
+        if ((g.kind === "item" || g.kind === "request" || g.kind === "loan") && g.target?.userId) {
           const o = await getDoc(doc(db, "users", g.target.userId));
           g.owner = o.exists() ? { uid: g.target.userId, ...o.data() } : { uid: g.target.userId };
         } else if ((g.kind === "user" || g.kind === "chat") && g.target) g.owner = { uid: g.targetId, ...g.target };
@@ -54,10 +54,10 @@ function render(list) {
     const reasons = {};
     g.reports.forEach((r) => { reasons[r.reason] = (reasons[r.reason] || 0) + 1; });
     const what = g.target
-      ? (g.kind === "item" || g.kind === "request" ? `<strong>${esc(g.target.title)}</strong><div style="font-size:.8rem;color:#6b7280;">${LABEL[g.kind]}</div>`
+      ? (g.kind === "item" || g.kind === "request" || g.kind === "loan" ? `<strong>${esc(g.target.title)}</strong><div style="font-size:.8rem;color:#6b7280;">${LABEL[g.kind]}</div>`
                            : `<strong>${esc(g.target.name)}</strong><div style="font-size:.8rem;color:#6b7280;">${LABEL[g.kind]}</div>`)
       : `<em>Already removed</em><div style="font-size:.8rem;color:#6b7280;">${esc(g.targetId)}</div>`;
-    const owner = (g.kind === "item" || g.kind === "request") && g.owner ? `<div style="font-size:.8rem;color:#6b7280;">by ${esc(g.owner.name || g.owner.uid)}</div>` : "";
+    const owner = (g.kind === "item" || g.kind === "request" || g.kind === "loan") && g.owner ? `<div style="font-size:.8rem;color:#6b7280;">by ${esc(g.owner.name || g.owner.uid)}</div>` : "";
     const details = g.reports.filter((r) => r.details).slice(0, 3).map((r) => `<div style="font-size:.8rem;color:#4b5563;">“${esc(r.details)}”</div>`).join("");
     const isSafeOwner = g.owner && g.owner.email === ADMIN_EMAIL;
     const banned = g.owner?.banned;

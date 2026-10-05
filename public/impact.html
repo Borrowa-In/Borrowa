@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="author" content="Shourya(Shadow)" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Borrowa — Our Impact</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<meta name="theme-color" content="#0a1a10" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="icon" type="image/png" href="icons/favicon-32.png" />
+<meta name="description" content="See what neighbours have saved by sharing instead of buying." />
+<meta property="og:title" content="Borrowa — Our Impact" />
+<meta property="og:description" content="See what neighbours have saved by sharing instead of buying." />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Borrowa" />
+<link rel="stylesheet" href="css/style.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="home.html" class="brand"><span class="brand-mark">B</span> Borrowa</a>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">Browse</a>
+      <a href="requests.html" class="nav-link">Requests</a>
+      <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+      <a href="chat.html" class="nav-link">Messages</a>
+      <a href="notices.html" class="nav-link">Notices</a>
+    </div>
+    <!-- nav-actions wrapped with opacity 0 initially to prevent any loading flash -->
+    <div class="nav-actions" style="display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity 0.2s ease;" id="nav-actions-wrapper">
+      <div id="nav-profile-slot" style="display:none;"></div>
+      <button id="nav-post-btn" class="btn btn-primary btn-sm">+ Lend item</button>
+      <button id="logout-btn" class="btn btn-outline btn-sm" style="display:none;">Log out</button>
+    </div>
+  </div>
+</nav>
+<main class="container" style="padding-top:32px;padding-bottom:48px;max-width:760px;">
+  <h1 style="margin:0 0 6px;">Our impact</h1>
+  <p style="color:#4b5563;margin:0 0 20px;">What neighbours have done by lending instead of buying. Only returns confirmed by the lender are counted.</p>
+  <div id="impact-card" style="background:linear-gradient(135deg,#14632f,#0a1a10);color:#fff;border-radius:18px;padding:24px;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;text-align:center;">
+      <div><div id="im-loans" style="font-size:2rem;font-weight:800;">–</div><div>items shared &amp; returned</div></div>
+      <div><div id="im-money" style="font-size:2rem;font-weight:800;">–</div><div>saved (estimate)</div></div>
+      <div><div id="im-co2" style="font-size:2rem;font-weight:800;">–</div><div>CO₂ avoided (estimate)</div></div>
+      <div><div id="im-members" style="font-size:2rem;font-weight:800;">–</div><div>neighbours taking part</div></div>
+    </div>
+  </div>
+  <p style="font-size:12px;color:#6b7280;margin-top:10px;">Estimates assume each borrowed item saves about ₹<span id="im-a-money">500</span> and about <span id="im-a-co2">5</span> kg of CO₂ compared with buying new. Real values vary by item.</p>
+  <button id="im-share" class="btn btn-primary" style="margin-top:12px;">Share this</button>
+  <div id="im-msg" style="font-size:13px;margin-top:8px;"></div>
+</main>
+<script type="module">
+  import { loadRankData } from "./js/ranks.js";
+  const MONEY_PER_LOAN = 500, CO2_PER_LOAN = 5;
+  const $ = (id) => document.getElementById(id);
+  let text = "";
+  try {
+    const d = await loadRankData();
+    const t = (d && d.totals) || {};
+    const loans = Number(t.borrows) || 0;
+    $("im-loans").textContent = loans.toLocaleString();
+    $("im-money").textContent = "₹" + (loans * MONEY_PER_LOAN).toLocaleString();
+    $("im-co2").textContent = (loans * CO2_PER_LOAN).toLocaleString() + " kg";
+    $("im-members").textContent = (Number(t.members) || 0).toLocaleString();
+    text = `Neighbours on Borrowa have shared and returned ${loans} items, saving about ₹${(loans * MONEY_PER_LOAN).toLocaleString()} and ${(loans * CO2_PER_LOAN).toLocaleString()} kg of CO₂.`;
+  } catch (e) { $("im-msg").textContent = "Couldn't load the numbers right now."; }
+  $("im-share").onclick = async () => {
+    const data = { title: "Borrowa impact", text: text || "Borrowa: lend and borrow with your neighbours.", url: location.href };
+    try { if (navigator.share) await navigator.share(data); else { await navigator.clipboard.writeText(data.text + " " + data.url); $("im-msg").textContent = "Copied to clipboard."; } } catch (e) {}
+  };
+</script>
+<script src="js/mobile-nav.js" defer></script>
+</body>
+</html>

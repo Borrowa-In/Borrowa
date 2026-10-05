@@ -91,3 +91,18 @@ Real push delivery (needs the Firebase project, Blaze, VAPID key, real phones) a
 - MUST republish `config/firestore.rules` (new `handovers` block).
 - Not done yet (needs a backend or bigger design): per-user daily caps on chat messages, trusted points (Cloud Function), ratings, reservations/waitlist, wanted alerts, urgent requests, verified community, dispute button, regional languages, impact page.
 - Tests: `npm test` (adds tests/handover.test.mjs). Rules were checked as text only, not in the emulator.
+
+## Plan items finished in the last pass (5 Oct 2026)
+- Ratings: `js/ratings.js`, rules `ratings/{itemId_raterUid}` (1-5 stars, optional comment, once per listing, never edited, admin can delete). The lender is asked to rate the borrower after "Mark as Returned"; the borrower is asked after "I returned it". The lender's average shows on listing cards. Ratings do NOT change leaderboard points (so colluding accounts cannot inflate rank).
+- Dispute button: `js/dispute.js`, report kind `loan` (id `loan_{itemId}_{uid}`). Only the lender or current borrower can file it; moderators cannot see it, admins see it in Reports as "Loan dispute".
+- Urgent requests: "Urgent: I need this today" checkbox on requests; saved as `urgent`, shown with a flame, push title changes (`functions/push.js`).
+- Impact page: `impact.html` (confirmed returns x rough per-item estimates of money and CO2; constants at the top of its script), linked in the nav.
+- Notice board warns "never put private information in a notice" (finding 8).
+- Tests: `tests/features.test.mjs`, included in `npm test`. Dev rules regenerated.
+- MUST republish `config/firestore.rules` (new `ratings` block, `loan` reports, `urgent` field).
+
+## Still NOT done (needs a backend or a bigger design)
+- Per-user daily caps on chat messages / reports (finding 5, needs counter documents or a Cloud Function).
+- Trusted points computed by a Cloud Function (finding 9; the function exists but the browser board is still used without Blaze).
+- Reservations and waitlist, wanted alerts, verified community (college ID / workplace email), regional languages.
+- Real-device checks: rules in the emulator, push delivery, App Check site key.

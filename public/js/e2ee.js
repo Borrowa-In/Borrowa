@@ -182,3 +182,18 @@ export async function exportChatKeyForReport(otherUid) {
   const bits = await crypto.subtle.deriveBits({ name: "ECDH", public: otherPublicKey }, myKeyPair.privateKey, 256);
   return bufToB64(bits);
 }
+
+// A short code made from both people's public keys. If both of you see the SAME code, nobody has swapped a key
+// in between (compare it in person or over a call).
+export async function chatFingerprint(otherUid) {
+  try {
+    const mine = await getMyKeyPair();
+    const myRaw = new Uint8Array(await crypto.subtle.exportKey("raw", mine.publicKey));
+    const otherRaw = await fetchPublicKeyRaw(otherUid);
+    if (!otherRaw) return null;
+    const a = Array.from(myRaw).join(","), b = Array.from(new Uint8Array(otherRaw)).join(",");
+    const joined = a < b ? a + "|" + b : b + "|" + a;
+    const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(joined)));
+    return Array.from(h.slice(0, 6)).map((x) => x.toString(16).padStart(2, "0")).join("").toUpperCase().match(/.{4}/g).join(" ");
+  } catch (e) { return null; }
+}

@@ -1,6 +1,6 @@
 import { auth, db } from "./firebase-config.js";
 import {
-  collection, addDoc, doc, updateDoc, getDocs, query, where, orderBy, serverTimestamp, writeBatch,
+  collection, addDoc, setDoc, doc, updateDoc, getDocs, query, where, orderBy, serverTimestamp, writeBatch,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { renderPushControls } from "./push.js";
@@ -16,7 +16,7 @@ const NOTIFICATIONS_COLLECTION = "notifications";
 export async function notifyPosterOfClaim({ posterUid, itemId, itemTitle, claimerUid, claimerName, amount, unit }) {
   if (!posterUid || posterUid === claimerUid) return; // no self-notifications
   try {
-    await addDoc(collection(db, NOTIFICATIONS_COLLECTION), {
+    const body = {
       recipientId: posterUid,
       type: "item_claimed",
       itemId: itemId || null,
@@ -27,7 +27,12 @@ export async function notifyPosterOfClaim({ posterUid, itemId, itemTitle, claime
       unit: unit || "units",
       read: false,
       createdAt: serverTimestamp(),
-    });
+    };
+    // Ids are itemId_myUid_0..2 (see firestore.rules): the first free slot wins, so nobody can flood a lender.
+    for (let n = 0; n < 3; n++) {
+      try { await setDoc(doc(db, NOTIFICATIONS_COLLECTION, `${itemId}_${claimerUid}_${n}`), body); return; }
+      catch (e) { if (n === 2) throw e; }
+    }
   } catch (err) {
     console.error("Failed to create claim notification:", err);
   }
@@ -76,6 +81,13 @@ function timeAgo(ts) {
 }
 
 function notifRow(n) {
+  if (n.type === "overdue_reminder" || n.type === "overdue_lender") {
+    const t = `<strong>${escapeHtml(n.itemTitle || "the item")}</strong>`;
+    const msg = n.type === "overdue_reminder"
+      ? `Overdue: ${t} was due ${escapeHtml(n.dueLabel || "already")}. Please return it, or message the lender if you need more time.`
+      : `${t} was due ${escapeHtml(n.dueLabel || "already")} and hasn't been marked returned.`;
+    return `<div style="padding:14px 16px;border-bottom:1px solid #f3f4f6;display:flex;gap:12px;"><span style="font-size:20px;">⚠️</span><div style="flex:1"><p style="margin:0 0 4px;font-size:14px;line-height:1.4;">${msg}</p><span style="font-size:12px;color:#9ca3af;">${timeAgo(n.createdAt)}</span></div></div>`;
+  }
   if (n.type === "due_reminder" || n.type === "listing_expired") {
     const msg = n.type === "due_reminder"
       ? `Reminder: please return <strong>${escapeHtml(n.itemTitle || "your borrowed item")}</strong> by ${escapeHtml(n.dueLabel || "the due date")}.`

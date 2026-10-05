@@ -1,0 +1,14 @@
+import fs from "node:fs";
+import assert from "node:assert/strict";
+const rules = fs.readFileSync("config/firestore.rules", "utf8");
+const dev = fs.readFileSync("config/firestore.dev.rules", "utf8");
+const block = rules.slice(rules.indexOf("match /handovers/"), rules.indexOf("match /pushTokens/"));
+assert.ok(block.includes("hid == request.resource.data.itemId + '_' + request.resource.data.borrowerId"), "id ties to borrower");
+assert.ok(block.includes("lenderHandedAt == request.time") && block.includes("borrowerReceivedAt == request.time"), "server-time stamps");
+assert.ok(/allow update:[\s\S]*borrowerReturnedAt/.test(block), "borrower can stamp return");
+assert.ok(!/allow delete: if true/.test(block), "delete is restricted");
+assert.ok(dev.includes("match /handovers/"), "dev rules regenerated");
+const fn = fs.readFileSync("functions/index.js", "utf8");
+assert.ok(fn.includes("overdue_reminder") && fn.includes("returned"), "overdue reminder skips returned loans");
+console.log("ok - handover rules + overdue reminders");
+console.log("handover tests passed");

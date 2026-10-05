@@ -106,12 +106,23 @@ exports.dueReminders = onSchedule({ schedule: "every 60 minutes", region: REGION
     for (const c of d.get("claims") || []) {
       const due = c.dueAt && c.dueAt.toMillis ? c.dueAt.toMillis() : 0;
       if (!due || due > soon || due < Date.now() - 7 * 864e5) continue;
-      const key = `${d.id}_${c.uid}_${due}`;
+      // Skip loans already confirmed returned (completedBy holds the lender's confirmations).
+      const claimedAt = c.claimedAt && c.claimedAt.toMillis ? c.claimedAt.toMillis() : 0;
+      const returned = (d.get("completedBy") || []).some((x) => x && x.uid === c.uid &&
+        (x.at && x.at.toMillis ? x.at.toMillis() : 0) >= claimedAt);
+      if (returned) continue;
+      const overdue = due < Date.now();
+      const key = `${d.id}_${c.uid}_${due}${overdue ? "_late" : ""}`;
       const mark = db.doc(`reminders/${key}`);
       if ((await mark.get()).exists) continue;
       await mark.set({ at: admin.firestore.FieldValue.serverTimestamp() });
-      await note(c.uid, { type: "due_reminder", itemId: d.id, itemTitle: d.get("title") || "",
+      await note(c.uid, { type: overdue ? "overdue_reminder" : "due_reminder", itemId: d.id, itemTitle: d.get("title") || "",
         dueLabel: new Date(due).toDateString() });
+      // Polite heads-up to the lender too, so they know it is late (once per loan).
+      if (overdue && d.get("userId")) {
+        await note(d.get("userId"), { type: "overdue_lender", itemId: d.id, itemTitle: d.get("title") || "",
+          dueLabel: new Date(due).toDateString() });
+      }
     }
   }
 });

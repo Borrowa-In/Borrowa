@@ -103,6 +103,14 @@ function notificationMessage(n, id) {
     return buildMessage({ kind: "due", tag: `n-${id}`, url: "home.html",
       title: "Return reminder", body: `Please return ${title} by ${clean(n.dueLabel, 30) || "the due date"}.` });
   }
+  if (n.type === "overdue_reminder") {
+    return buildMessage({ kind: "due", tag: `n-${id}`, url: "home.html",
+      title: "Overdue: please return", body: `${title} was due ${clean(n.dueLabel, 30) || "already"}. Please return it or message the lender.` });
+  }
+  if (n.type === "overdue_lender") {
+    return buildMessage({ kind: "due", tag: `n-${id}`, url: "home.html",
+      title: "Item is overdue", body: `${title} was due ${clean(n.dueLabel, 30) || "already"} and hasn't been returned.` });
+  }
   if (n.type === "listing_expired") {
     return buildMessage({ kind: "expired", tag: `n-${id}`, url: "home.html",
       title: "Listing expired", body: `${title} was taken down because it expired.` });

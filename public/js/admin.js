@@ -15,6 +15,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { buildUnclaimUpdate, buildForceClaimUpdate, resolveQuantityTotal } from "./item-status.js";
 import { isIpBanned, banIp, unbanIp } from "./ip-guard.js";
+import { logAdminAction } from "./admin-log.js";
 import { TIERS, tierByKey, publishLeaderboard, leaderboardUpdatedAt, loadRankConfig } from "./ranks.js";
 
 // Local state arrays to allow real-time filtering
@@ -119,6 +120,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       await deleteDoc(doc(db, "users", uid));
+      logAdminAction("Deleted member profile", uid);
       await deleteDoc(doc(db, "admins", uid)).catch(() => {});
       alert("User profile deleted.");
       closeEditUserModal();
@@ -342,6 +344,7 @@ function renderListingsTable(itemsArray) {
       if (confirm("Permanently delete this item listing?")) {
         try {
           await deleteDoc(doc(db, "items", itemId));
+          logAdminAction("Deleted listing", itemId);
           deleteDoc(doc(db, "itemPhotos", itemId)).catch(() => {});
           alert("Listing removed.");
           loadAdminStatsAndListings();
@@ -475,6 +478,7 @@ function renderUsersTable(usersArray) {
       const user = allUsersCache.find((u) => u.uid === uid);
       try {
         await updateDoc(doc(db, "users", uid), { rank: key || null });
+        logAdminAction("Set rank: " + (key || "auto"), uid);
         refreshLeaderboard(true);
         if (user) user.rank = key || null;
         const t = tierByKey(key);
@@ -512,9 +516,11 @@ function renderUsersTable(usersArray) {
         if (action === "promote") {
           const email = targetUser ? targetUser.email : "unknown@user.com";
           await setDoc(doc(db, "admins", uid), { email, updatedAt: serverTimestamp() });
+          logAdminAction("Made admin", email);
           alert("User promoted to Admin successfully!");
         } else {
           await deleteDoc(doc(db, "admins", uid));
+          logAdminAction("Revoked admin", uid);
           alert("Admin privileges revoked.");
         }
         loadAdminUsers();
@@ -532,6 +538,7 @@ function renderUsersTable(usersArray) {
       const action = e.target.getAttribute("data-action");
       try {
         await updateDoc(doc(db, "users", uid), { banned: action === "ban" });
+        logAdminAction(action === "ban" ? "Banned member" : "Unbanned member", uid);
         try { await setDevicesBanned(uid, action === "ban"); } catch (e) { console.warn("Device ban failed:", e); }
         loadAdminUsers();
       } catch (err) {
@@ -609,7 +616,9 @@ async function renderIpRow(user) {
     try {
       if (banned) {
         await unbanIp(ip);
+        logAdminAction("Unbanned IP", ip);
       } else {
+        logAdminAction("Banned IP", ip);
         await banIp(ip, `Banned via admin console from ${user.name || user.email}'s profile`, auth.currentUser ? auth.currentUser.uid : null);
       }
       await renderIpRow(user);

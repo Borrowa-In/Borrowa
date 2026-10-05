@@ -3,6 +3,7 @@
 // Server-side enforcement is in firestore.rules (deviceLimit() + devices/{id}).
 import { db, auth } from "./firebase-config.js";
 import { getDeviceLimit, setDeviceLimit, markDeviceUnlimited, getDeviceId } from "./device.js";
+import { logAdminAction } from "./admin-log.js";
 import { collection, getDocs, updateDoc, doc, query, limit } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const root = document.getElementById("device-limits-root");
@@ -38,7 +39,7 @@ async function render() {
   root.querySelector("#dl-save").addEventListener("click", async () => {
     const n = +(opts.find((o) => o.checked) || {}).value;
     msg.style.color = "#6b7280"; msg.textContent = "Saving…";
-    try { await setDeviceLimit(n); root.querySelector("#dl-cur").textContent = label(n); msg.style.color = "#15803d"; msg.textContent = "Saved ✓"; }
+    try { await setDeviceLimit(n); logAdminAction("Set accounts-per-device limit", String(n)); root.querySelector("#dl-cur").textContent = label(n); msg.style.color = "#15803d"; msg.textContent = "Saved ✓"; }
     catch (e) { console.error(e); msg.style.color = "#b91c1c"; msg.textContent = "Couldn't save — publish the latest firestore.rules."; }
   });
   root.querySelector("#dl-mine").addEventListener("click", async (e) => {
@@ -67,7 +68,7 @@ async function loadDevices() {
     }).join("")}</tbody></table></div>`;
     el.querySelectorAll(".dl-unl").forEach((c) => c.addEventListener("change", async () => {
       c.disabled = true;
-      try { await updateDoc(doc(db, "devices", c.dataset.id), { unlimited: c.checked }); }
+      try { await updateDoc(doc(db, "devices", c.dataset.id), { unlimited: c.checked }); logAdminAction(c.checked ? "Device set unlimited" : "Device limit restored", c.dataset.id.slice(0, 8)); }
       catch (e) { console.error(e); c.checked = !c.checked; alert("Couldn't change that device."); }
       c.disabled = false;
     }));

@@ -17,6 +17,7 @@ import { getCurrentPositionSafe, distanceMeters } from "./geo.js";
 import { recordLoginIp, isIpBanned } from "./ip-guard.js";
 import { initE2ee } from "./e2ee.js";
 import { getOrCreateChat } from "./chat.js";
+import { loadHandover, confirmStep, closeHandover, handoverStatusText } from "./handover.js";
 import { mountPushPrompt, refreshPushToken, forgetPushOnThisDevice } from "./push.js";
 import { itemArtHtml } from "./art.js";
 import { createColorStudio } from "./color-studio.js";
@@ -918,7 +919,7 @@ if (postItemForm) {
           userName: currentUser ? String(currentUser.displayName || currentUser.email.split("@")[0]).slice(0, 60) : "Neighbor",
           claimedBy: null,
           claimedByName: null,
-          location: postLocation || null,
+          location: blurLocation(postLocation),
           createdAt: serverTimestamp(),
           expiresAt: new Date(Date.now() + (category === "Misc" && /food|meal|snack|biryani|lunch|dinner/i.test(String(formData.get("title") || "")) ? 2 * 36e5 : 5 * 864e5)),
         });
@@ -996,6 +997,12 @@ let rankMembers = new Map();
 let rankReady = false;
 
 // Core function to load items with fail-safe error rendering
+// Listings are public, so the poster's exact GPS point is never stored: round it to ~110 m.
+function blurLocation(loc) {
+  if (!loc || typeof loc.lat !== "number" || typeof loc.lng !== "number") return loc || null;
+  const r = (v) => Math.round(v * 1000) / 1000;
+  return { ...loc, lat: r(loc.lat), lng: r(loc.lng) };
+}
 let loadSeq = 0;
 let cachePainted = false;
 // loadItems(true) = instant paint from the browser's local copy (no network). The normal call
@@ -1338,7 +1345,9 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
             showNotification("This listing no longer exists.", "error");
             return;
           }
+          const returningBorrower = freshSnap.data().claimedBy;
           await updateDoc(doc(db, "items", docId), buildReturnUpdate(freshSnap.data()));
+          if (returningBorrower) closeHandover(docId, returningBorrower);
           showNotification("Marked as returned. It's available to borrow again. ↩️", "success");
           fetchLiveStats();
           loadItems();
@@ -1352,6 +1361,30 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
       actionsContainer.appendChild(unclaimBtn);
 
       if (item.claimedBy) {
+        const handBtn = document.createElement("button");
+        handBtn.textContent = "📦 Handed over";
+        handBtn.style.cssText = "background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;";
+        const handStatus = document.createElement("div");
+        handStatus.style.cssText = "flex-basis: 100%; font-size: 11px; color: #6b7280;";
+        const refreshHand = async () => {
+          const h = await loadHandover(docId, item.claimedBy);
+          handStatus.textContent = handoverStatusText(h);
+          if (h && h.lenderHandedAt) { handBtn.disabled = true; handBtn.textContent = "📦 Handed over ✓"; }
+        };
+        handBtn.addEventListener("click", async () => {
+          const note = prompt("Optional: note the item's condition (e.g. 'small scratch on the lid'). Leave empty to skip.", "");
+          if (note === null) return;
+          handBtn.disabled = true;
+          try {
+            await confirmStep({ itemId: docId, itemTitle: item.title, lenderId: auth.currentUser.uid, borrowerId: item.claimedBy, step: "lenderHandedAt", note });
+            showNotification("Handover recorded. 📦", "success");
+          } catch (e) { console.error(e); showNotification("Couldn't record the handover.", "error"); handBtn.disabled = false; }
+          refreshHand();
+        });
+        actionsContainer.appendChild(handBtn);
+        actionsContainer.appendChild(handStatus);
+        refreshHand();
+
         const chatBtn = document.createElement("button");
         chatBtn.textContent = "💬 Chat";
         chatBtn.style.cssText = "background: #eef2ff; color: #4338ca; border: 1px solid #c7d2fe; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; font-weight: 600;";
@@ -1398,6 +1431,44 @@ function createItemCard(docId, item, isOwner, distanceMeters = null) {
       }
     });
     footerActionContainer.appendChild(chatBtn);
+
+    // Borrower confirmations: "I received it" and "I returned it" (see js/handover.js).
+    const stepWrap = document.createElement("div");
+    stepWrap.style.cssText = "display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px;";
+    const status = document.createElement("div");
+    status.style.cssText = "flex-basis: 100%; font-size: 11px; color: #6b7280;";
+    const mkStep = (label, step, doneLabel) => {
+      const b = document.createElement("button");
+      b.textContent = label;
+      b.className = "btn btn-outline btn-sm";
+      b.style.flex = "1";
+      b.dataset.step = step;
+      b.dataset.label = label;
+      b.dataset.done = doneLabel;
+      b.addEventListener("click", async () => {
+        const note = prompt("Optional: note the item's condition. Leave empty to skip.", "");
+        if (note === null) return;
+        b.disabled = true;
+        try {
+          await confirmStep({ itemId: docId, itemTitle: item.title, lenderId: item.userId, borrowerId: auth.currentUser.uid, step, note });
+          showNotification("Saved. ✅", "success");
+        } catch (e) { console.error(e); showNotification(e.message && e.message.startsWith("Confirm") ? e.message : "Couldn't save that.", "error"); b.disabled = false; }
+        refresh();
+      });
+      return b;
+    };
+    const recvBtn = mkStep("✅ I received it", "borrowerReceivedAt");
+    const retBtn = mkStep("↩️ I returned it", "borrowerReturnedAt");
+    const refresh = async () => {
+      const h = await loadHandover(docId, auth.currentUser.uid);
+      status.textContent = handoverStatusText(h);
+      if (h && h.borrowerReceivedAt) { recvBtn.disabled = true; recvBtn.textContent = "✅ Received ✓"; }
+      if (h && h.borrowerReturnedAt) { retBtn.disabled = true; retBtn.textContent = "↩️ Returned ✓"; }
+      retBtn.disabled = retBtn.disabled || !(h && h.borrowerReceivedAt);
+    };
+    stepWrap.append(recvBtn, retBtn, status);
+    footerActionContainer.appendChild(stepWrap);
+    refresh();
   } else {
     footerActionContainer.innerHTML = `<button class="btn btn-outline btn-sm" disabled style="width: 100%; opacity: 0.6; cursor: not-allowed;">Currently Borrowed</button>`;
   }

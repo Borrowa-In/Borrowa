@@ -83,3 +83,11 @@ Real push delivery (needs the Firebase project, Blaze, VAPID key, real phones) a
 - Chat: `nameTagHtml()` / `nameCardHtml()` in `js/ranks.js` draw the other person's name on their rank background (list, header namecard, above each run of their messages). CSS: last block of `css/style.css`.
 - MUST republish `config/firestore.rules` (new `isModerator()` + report rules). `config/firestore.dev.rules` regenerated. `functions/points.js` RANK_KEYS edited by hand to match `public/js/points.js`.
 - Tests: `tests/moderator.test.mjs` (rank keys in sync, rules text checks). Playwright with Firebase stubbed checked chat tags, moderator page flow and the admin tab. NOT run against real Firestore rules.
+
+## Security + improvement plan (5 Oct 2026): status
+- Items 1, 3 (admin cannot write publicKey; chat fingerprint shown), 4 (blurLocation), 6 (banned-IP list admin-only), 7 (adminLog), 10 (dev rules header) were already in the code. Item 2: App Check is wired in `firebase-config.js` and needs your site key (docs/SECURITY_SETUP.md).
+- NEW: handover + return confirmation. `js/handover.js`, `handovers/{itemId_borrowerUid}` rules, buttons on the listing card (lender "Handed over"; borrower "I received it" / "I returned it", optional condition note). Stamps use server time and each person can only write their own. Lender's "Mark as Returned" closes the record.
+- NEW: overdue reminders (`dueReminders` in functions/index.js): borrower and lender get a polite notice once a loan is past due. Already-returned loans no longer get reminders. Works with push (functions/push.js, push poller).
+- MUST republish `config/firestore.rules` (new `handovers` block).
+- Not done yet (needs a backend or bigger design): per-user daily caps on chat messages, trusted points (Cloud Function), ratings, reservations/waitlist, wanted alerts, urgent requests, verified community, dispute button, regional languages, impact page.
+- Tests: `npm test` (adds tests/handover.test.mjs). Rules were checked as text only, not in the emulator.

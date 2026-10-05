@@ -72,7 +72,7 @@
 <script type="module">
   import { auth } from "./js/firebase-config.js";
   import { listenMessages, listenMyChats, sendMessage, getChat, otherParticipant, decryptMessage } from "./js/chat.js";
-  import { decryptFromUser } from "./js/e2ee.js";
+  import { decryptFromUser, chatFingerprint } from "./js/e2ee.js";
   import { openChatReport } from "./js/chat-report.js";
   import { loadRankData, peekRankData, TIERS, nameTagHtml, nameCardHtml } from "./js/ranks.js";
 
@@ -180,6 +180,13 @@
     headerEl.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:10px;";
     headerEl.innerHTML = `<span style="display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap;">${nameCardHtml(otherName, tierOf(activeOtherUid))}<span style="font-weight:600;font-size:12.5px;color:var(--muted);">🔒 ${escapeHtml(chat.itemTitle || "")}</span></span><button type="button" id="report-chat-btn" class="btn btn-outline btn-sm" style="flex-shrink:0;">🚩 Report</button>`;
     document.getElementById("report-chat-btn").onclick = () => openChatReport({ chatId, otherUid: activeOtherUid, otherName });
+    chatFingerprint(activeOtherUid).then((fp) => {
+      if (!fp) return;
+      const t = document.createElement("div");
+      t.style.cssText = "flex-basis:100%;font-size:11px;font-weight:400;color:var(--muted);";
+      t.textContent = "🔑 Security code: " + fp + " (you and " + otherName + " should see the same code)";
+      headerEl.style.flexWrap = "wrap"; headerEl.appendChild(t);
+    });
     formEl.style.display = "flex";
     unsubMessages = listenMessages(chatId, (msgs) => renderMessages(msgs, uid, activeOtherUid));
   }

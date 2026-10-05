@@ -14,10 +14,17 @@ service cloud.firestore {
       return email == 'shouryaupadhyay50@gmail.com';
     }
 
+    // The permanent admin must ALSO have a verified email. Without this, whoever registered that
+    // address first (e.g. after the account was deleted) would instantly become admin.
+    function isMainAdmin() {
+      return request.auth != null && isPermanentAdminEmail(request.auth.token.email) &&
+        request.auth.token.email_verified == true;
+    }
+
     // Helper function to check if the current user is an admin
     function isAdmin() {
       return request.auth != null && (
-        isPermanentAdminEmail(request.auth.token.email) ||
+        isMainAdmin() ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }
@@ -195,6 +202,8 @@ service cloud.firestore {
         (request.auth.uid == userId && !('email' in request.resource.data) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['email'])) ||
         (isAdmin() &&
+          // Nobody but the owner may change a chat key (stops an admin reading new messages).
+          request.resource.data.get('publicKey', '') == resource.data.get('publicKey', '') &&
           !(isPermanentAdminUid(userId) &&
             request.resource.data.get('role', null) != resource.data.get('role', null)))
       );
@@ -480,7 +489,8 @@ service cloud.firestore {
     // Readable by any signed-in user so the client can self-check on
     // login/page-load; only an admin can add or remove an entry.
     match /bannedIPs/{ip} {
-      allow read: if request.auth != null;
+      allow get: if request.auth != null;   // a member can only check their OWN address
+      allow list: if isAdmin();             // the full list is admin-only
       allow write: if isAdmin();
     }
 
@@ -492,7 +502,7 @@ service cloud.firestore {
     match /admins/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
       allow write: if request.auth != null && (
-        (request.auth.uid == userId && isPermanentAdminEmail(request.auth.token.email)) ||
+        (request.auth.uid == userId && isMainAdmin()) ||
         isAdmin()
       );
     }
@@ -506,6 +516,8 @@ service cloud.firestore {
       allow read: if request.auth != null && request.auth.uid == resource.data.recipientId;
 
       allow create: if request.auth != null && !isBanned() &&
+        // Document id = itemId_senderUid_0..2, so one person can send at most 3 per item (no flooding).
+        notifId.matches(request.resource.data.itemId + '_' + request.auth.uid + '_[0-2]') &&
         request.resource.data.keys().hasOnly(['recipientId', 'type', 'itemId', 'itemTitle', 'claimedByUid',
           'claimedByName', 'amount', 'unit', 'read', 'createdAt']) &&
         request.resource.data.type == 'item_claimed' &&
@@ -547,7 +559,9 @@ service cloud.firestore {
         request.resource.data.targetId is string && request.resource.data.targetId.size() <= 120 &&
         request.resource.data.details is string && request.resource.data.details.size() <= 500 &&
         (
-          (request.resource.data.kind in ['item', 'user', 'request'] && !('chatId' in request.resource.data) && !('chatKey' in request.resource.data)) ||
+          (request.resource.data.kind in ['item', 'user', 'request'] && !('chatId' in request.resource.data) && !('chatKey' in request.resource.data) &&
+            // One report per person per target (stops report flooding).
+            id == request.resource.data.kind + '_' + request.resource.data.targetId + '_' + request.auth.uid) ||
           (request.resource.data.kind == 'chat' &&
             id == 'chat_' + request.resource.data.chatId + '_' + request.auth.uid &&
             request.resource.data.chatKey is string && request.resource.data.chatKey.size() < 100 &&
@@ -592,6 +606,18 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- adminLog/{id}: who did what (append-only) ----------
+    // Admins add an entry for each sensitive action. Nobody can edit or delete entries.
+    match /adminLog/{id} {
+      allow read: if isAdmin();
+      allow create: if isAdmin() &&
+        request.resource.data.keys().hasOnly(['adminId', 'adminEmail', 'action', 'target', 'createdAt']) &&
+        request.resource.data.adminId == request.auth.uid &&
+        request.resource.data.action is string && request.resource.data.action.size() <= 80 &&
+        request.resource.data.target is string && request.resource.data.target.size() <= 200;
+      allow update, delete: if false;
+    }
+
     // ---------- notices/{id}: notice board ----------
     // Admins and moderators post; any signed-in member can read (the home page filters by rank).
     // Only the author or an admin can delete. Notices are never edited after posting.
@@ -617,7 +643,7 @@ service cloud.firestore {
     match /siteConfig/{docId} {
       allow read: if true;
       allow create, update: if request.auth != null && (
-        (isPermanentAdminEmail(request.auth.token.email) &&
+        (isMainAdmin() &&
           docId == 'ranks' &&
           request.resource.data.keys().hasOnly(['overrides', 'custom', 'updatedAt']) &&
           request.resource.data.overrides is map &&
@@ -627,6 +653,55 @@ service cloud.firestore {
           request.resource.data.maxAccounts is int &&
           request.resource.data.maxAccounts >= 1 && request.resource.data.maxAccounts <= 999));
       allow delete: if false;
+    }
+
+    // ---------- handovers/{itemId_borrowerUid}: both people confirm the handover and the return ----------
+    // Ends "it was already scratched" disputes. The lender stamps `lenderHandedAt`; the borrower
+    // stamps `borrowerReceivedAt` and later `borrowerReturnedAt`. Each person can only write THEIR OWN
+    // stamp, once, and it must equal the server time (so it can't be back-dated). An optional short
+    // `note` (condition) can be added by either. Only the two people and admins can read it.
+    // The lender may delete it when they confirm the return (the loan is closed).
+    match /handovers/{hid} {
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.lenderId || request.auth.uid == resource.data.borrowerId || isAdmin());
+
+      allow create: if request.auth != null && !isBanned() && isVerified() &&
+        request.resource.data.keys().hasOnly(['itemId', 'itemTitle', 'lenderId', 'borrowerId',
+          'lenderHandedAt', 'borrowerReceivedAt', 'borrowerReturnedAt', 'note', 'updatedAt']) &&
+        hid == request.resource.data.itemId + '_' + request.resource.data.borrowerId &&
+        request.resource.data.lenderId != request.resource.data.borrowerId &&
+        request.auth.uid in [request.resource.data.lenderId, request.resource.data.borrowerId] &&
+        request.resource.data.itemTitle is string && request.resource.data.itemTitle.size() <= 200 &&
+        request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 200 &&
+        request.resource.data.updatedAt == request.time &&
+        get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.userId == request.resource.data.lenderId &&
+        get(/databases/$(database)/documents/items/$(request.resource.data.itemId)).data.get('claimedBy', null) == request.resource.data.borrowerId &&
+        // exactly one stamp, and it is the caller's own
+        (
+          (request.auth.uid == request.resource.data.lenderId &&
+            request.resource.data.keys().hasOnly(['itemId', 'itemTitle', 'lenderId', 'borrowerId', 'lenderHandedAt', 'note', 'updatedAt']) &&
+            request.resource.data.lenderHandedAt == request.time) ||
+          (request.auth.uid == request.resource.data.borrowerId &&
+            request.resource.data.keys().hasOnly(['itemId', 'itemTitle', 'lenderId', 'borrowerId', 'borrowerReceivedAt', 'note', 'updatedAt']) &&
+            request.resource.data.borrowerReceivedAt == request.time)
+        );
+
+      allow update: if request.auth != null && !isBanned() && (
+        (request.auth.uid == resource.data.lenderId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lenderHandedAt', 'note', 'updatedAt']) &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['lenderHandedAt']) ||
+            (!('lenderHandedAt' in resource.data) && request.resource.data.lenderHandedAt == request.time))) ||
+        (request.auth.uid == resource.data.borrowerId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['borrowerReceivedAt', 'borrowerReturnedAt', 'note', 'updatedAt']) &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['borrowerReceivedAt']) ||
+            (!('borrowerReceivedAt' in resource.data) && request.resource.data.borrowerReceivedAt == request.time)) &&
+          (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['borrowerReturnedAt']) ||
+            (!('borrowerReturnedAt' in resource.data) && request.resource.data.borrowerReturnedAt == request.time)))
+      ) &&
+        request.resource.data.get('note', '') is string && request.resource.data.get('note', '').size() <= 200 &&
+        request.resource.data.updatedAt == request.time;
+
+      allow delete: if request.auth != null && (request.auth.uid == resource.data.lenderId || isAdmin());
     }
 
     // ---------- pushTokens/{token} ----------

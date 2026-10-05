@@ -1,6 +1,6 @@
 import { auth, db, DEV_MODE } from "./firebase-config.js";
 import { 
-  collection, addDoc, serverTimestamp, getDocs, query, orderBy, doc, deleteDoc, updateDoc, getDoc,
+  collection, addDoc, serverTimestamp, getDocs, getDocsFromCache, query, orderBy, doc, deleteDoc, updateDoc, getDoc,
   runTransaction, arrayUnion, writeBatch, setDoc, deleteField
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { compressPhoto } from "./photo.js";
@@ -683,6 +683,7 @@ fetchLiveStats();
 onAuthStateChanged(auth, async (user) => {
   // Kick off the listings right away (auth is known now) instead of after
   // the profile / admin / IP checks below, which used to delay the first paint.
+  if (!cachePainted) loadItems(true);
   loadItems();
   if (logoutBtn) logoutBtn.style.display = user ? "inline-block" : "none";
   // Guests can't lend, so don't offer it: show log in / sign up instead.
@@ -993,8 +994,13 @@ let rankMembers = new Map();
 let rankReady = false;
 
 // Core function to load items with fail-safe error rendering
-async function loadItems() {
+let loadSeq = 0;
+let cachePainted = false;
+// loadItems(true) = instant paint from the browser's local copy (no network). The normal call
+// right after it brings the fresh data, so moving between pages feels instant instead of reloading.
+async function loadItems(cacheOnly = false) {
   if (!itemGrid) return;
+  const mySeq = ++loadSeq;
   
   try {
     // Rank styling never holds up the listings: use what we already know,
@@ -1006,7 +1012,13 @@ async function loadItems() {
       loadRankData().then((d) => { rankMembers = d.members; loadItems(); }).catch(() => {});
     }
     let snapshot;
-    try {
+    if (cacheOnly) {
+      try {
+        snapshot = await getDocsFromCache(query(collection(db, "items"), orderBy("createdAt", "desc")));
+      } catch (e) { return; }
+      if (snapshot.empty || mySeq !== loadSeq) return; // nothing saved yet, or fresh data already arrived
+      cachePainted = true;
+    } else try {
       const q = query(collection(db, "items"), orderBy("createdAt", "desc"));
       snapshot = await getDocs(q);
     } catch (indexError) {

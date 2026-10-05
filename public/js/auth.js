@@ -137,22 +137,28 @@ export async function signUp({ name, email, password, building }) {
     if (["device-taken", "device-banned", "email-duplicate"].includes(e.code)) await cred.user.delete().catch(() => {});
     throw e;
   }
+  // Start the IP lookup now (it's the slowest part) while the profile is written.
+  resetIpCache();
+  const gate = enforceIpGate(cred.user);
+  gate.catch(() => {});
   try {
-    await setDoc(doc(db, "users", cred.user.uid), {
-      name: name || email.split("@")[0],
-      building: building || "",
-      createdAt: serverTimestamp(),
-    });
-    await setDoc(doc(db, "userPrivate", cred.user.uid), { email: cred.user.email });
+    await Promise.all([
+      setDoc(doc(db, "users", cred.user.uid), {
+        name: name || email.split("@")[0],
+        building: building || "",
+        createdAt: serverTimestamp(),
+      }),
+      setDoc(doc(db, "userPrivate", cred.user.uid), { email: cred.user.email }),
+    ]);
   } catch (e) {
     console.error("Error creating user profile:", e);
   }
-  
+
   // Provision admin rights if email matches the auto-admin list
   await syncAdminPrivileges(cred.user);
-  if (!DEV_MODE && !testerUids.has(cred.user.uid)) try { await sendVerification(cred.user); } catch (e) { console.warn("Couldn't send verification email:", e); }
-  resetIpCache();
-  await enforceIpGate(cred.user);
+  // The verification email sends in the background; the person doesn't have to wait for it.
+  if (!DEV_MODE && !testerUids.has(cred.user.uid)) sendVerification(cred.user).catch((e) => console.warn("Couldn't send verification email:", e));
+  await gate;
   return cred.user;
 }
 

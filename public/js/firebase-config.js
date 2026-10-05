@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { initializeAppCheck, ReCaptchaV3Provider } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-check.js";
 import { getAuth, connectAuthEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAViu1MilSQI0rwFyMOMewWzQJ5zuNL1eo",
@@ -28,7 +28,11 @@ if (APP_CHECK_SITE_KEY) {
   initializeAppCheck(app, { provider: new ReCaptchaV3Provider(APP_CHECK_SITE_KEY), isTokenAutoRefreshEnabled: true });
 }
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Keep a local copy of data in the browser, so pages can paint instantly from it while fresh data loads.
+let _db;
+try { _db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
+catch (e) { _db = getFirestore(app); }
+export const db = _db;
 // Photos are stored in Firestore (itemPhotos), not Firebase Storage, so no paid plan is needed.
 if (DEV_MODE) {
   connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });

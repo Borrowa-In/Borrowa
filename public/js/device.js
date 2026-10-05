@@ -11,7 +11,26 @@ import {
   doc, getDoc, setDoc, updateDoc, arrayUnion, getDocs, query, collection, where, serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-export const MAX_ACCOUNTS_PER_DEVICE = 2;
+export const DEFAULT_MAX_ACCOUNTS = 2;
+// The admin picks the limit in the Device limits tab (siteConfig/device.maxAccounts). Cached briefly.
+export async function getDeviceLimit(force = false) {
+  try {
+    const c = JSON.parse(sessionStorage.getItem("borrowa_dev_limit") || "null");
+    if (!force && c && Date.now() - c.t < 60000) return c.n;
+  } catch (e) {}
+  let n = DEFAULT_MAX_ACCOUNTS;
+  try {
+    const snap = await getDoc(doc(db, "siteConfig", "device"));
+    const v = snap.exists() ? snap.data().maxAccounts : null;
+    if (Number.isInteger(v) && v >= 1 && v <= 999) n = v;
+  } catch (e) {}
+  try { sessionStorage.setItem("borrowa_dev_limit", JSON.stringify({ t: Date.now(), n })); } catch (e) {}
+  return n;
+}
+export async function setDeviceLimit(n) {
+  await setDoc(doc(db, "siteConfig", "device"), { maxAccounts: n, updatedAt: serverTimestamp() });
+  try { sessionStorage.removeItem("borrowa_dev_limit"); } catch (e) {}
+}
 
 // "Unlimited device": the admin's own browser. When the permanent admin signs in on a
 // browser, that browser's device record is flagged `unlimited` (only an admin can write
@@ -89,8 +108,9 @@ export async function bindDevice(user) {
       if (!(d.emails || {})[user.uid]) { try { await updateDoc(ref, { [emailPath]: myEmail }); } catch (e) {} }
       return;
     }
-    if ((d.uids || []).length >= MAX_ACCOUNTS_PER_DEVICE) {
-      const err = fail("device-taken", `This device already has the maximum of ${MAX_ACCOUNTS_PER_DEVICE} Borrowa accounts. Delete one of them to continue.`);
+    const limit = await getDeviceLimit(true);
+    if ((d.uids || []).length >= limit) {
+      const err = fail("device-taken", `This device already has the maximum of ${limit} Borrowa account${limit === 1 ? "" : "s"}. Delete one of them to continue.`);
       err.accounts = d.uids.map((uid) => ({ uid, email: (d.emails || {})[uid] || null }));
       throw err;
     }

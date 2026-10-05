@@ -300,6 +300,8 @@
     <button class="tab-btn" data-tab="reports-tab">Reports <span id="reports-count"></span></button>
     <button class="tab-btn" data-tab="modreports-tab">🛡️ Moderator checked <span id="modreports-count"></span></button>
     <button class="tab-btn" data-tab="ranks-tab" id="ranks-tab-btn" hidden>🏅 Ranks</button>
+    <button class="tab-btn" data-tab="notices-tab">📢 Notice Board</button>
+    <button class="tab-btn" data-tab="devices-tab">🔐 Device limits</button>
   </div>
 
   <!-- Listings Control Section -->
@@ -406,6 +408,18 @@
         <tbody id="admin-modreports-body"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- Notice board -->
+  <div id="notices-tab" class="admin-tab-content" style="display:none;">
+    <div class="section-header-flex"><h2>📢 Notice Board</h2></div>
+    <div id="notice-composer"></div>
+  </div>
+
+  <!-- Device limits -->
+  <div id="devices-tab" class="admin-tab-content" style="display:none;">
+    <div class="section-header-flex"><h2>🔐 Device limits</h2></div>
+    <div id="device-limits-root"></div>
   </div>
 
   <!-- Ranks & gradients: main admin only (the tab button stays hidden for other admins) -->
@@ -517,6 +531,8 @@
 <script type="module" src="js/admin-requests.js"></script>
 <script type="module" src="js/admin-modreports.js"></script>
 <script type="module" src="js/admin-ranks.js"></script>
+<script type="module" src="js/admin-devices.js"></script>
+<script type="module">import { mountNoticeComposer } from "./js/notices.js"; mountNoticeComposer(document.getElementById("notice-composer"), { isAdmin: true });</script>
 <script src="js/prefetch.js" defer></script>
 <!-- Shourya(Shadow) -->
 <div class="sw-mark" aria-hidden="true" data-author="Shourya(Shadow)">Shourya(Shadow)</div>

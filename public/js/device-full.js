@@ -33,8 +33,8 @@ export function showDeviceFullDialog(accounts, onDone) {
   const close = () => overlay.remove();
 
   box.append(
-    el("h2", { textContent: "This device already has 2 accounts" }, "margin:0 0 6px;font-size:20px;"),
-    el("p", { textContent: "Borrowa allows up to 2 accounts per device. To continue, delete one of the accounts below. Deleting is permanent: the account, its listings and its profile are removed." }, "margin:0 0 14px;font-size:14px;line-height:1.5;color:#4b5563;")
+    el("h2", { textContent: "This device has reached its account limit" }, "margin:0 0 6px;font-size:20px;"),
+    el("p", { textContent: "Borrowa limits how many accounts one device can hold. To continue, delete one of the accounts below. Deleting is permanent: the account, its listings and its profile are removed." }, "margin:0 0 14px;font-size:14px;line-height:1.5;color:#4b5563;")
   );
   const status = el("p", {}, "margin:12px 0 0;font-size:13.5px;font-weight:600;min-height:18px;");
   const list = el("div", {}, "display:flex;flex-direction:column;gap:10px;");

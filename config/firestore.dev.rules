@@ -80,6 +80,12 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Accounts allowed per device. The admin sets it in siteConfig/device (Device limits tab); default 2.
+    function deviceLimit() {
+      return exists(/databases/$(database)/documents/siteConfig/device)
+        ? get(/databases/$(database)/documents/siteConfig/device).data.get('maxAccounts', 2) : 2;
+    }
+
     // ---------- devices/{id}: up to 2 accounts per device, bannable by admins ----------
     match /devices/{deviceId} {
       allow get: if request.auth != null;
@@ -100,7 +106,7 @@ service cloud.firestore {
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['uids', 'emails']) &&
           resource.data.banned == false &&
           request.resource.data.uids.size() == resource.data.uids.size() + 1 &&
-          (resource.data.get('unlimited', false) == true || request.resource.data.uids.size() <= 2) &&
+          (resource.data.get('unlimited', false) == true || request.resource.data.uids.size() <= deviceLimit()) &&
           request.resource.data.uids.hasAll(resource.data.uids) &&
           request.auth.uid in request.resource.data.uids &&
           request.resource.data.get('emails', {}).diff(resource.data.get('emails', {})).affectedKeys().hasOnly([request.auth.uid]) &&
@@ -583,11 +589,16 @@ service cloud.firestore {
     // never be deleted. The app re-cleans every colour / name it reads back.
     match /siteConfig/{docId} {
       allow read: if true;
-      allow create, update: if request.auth != null && isPermanentAdminEmail(request.auth.token.email) &&
-        docId == 'ranks' &&
-        request.resource.data.keys().hasOnly(['overrides', 'custom', 'updatedAt']) &&
-        request.resource.data.overrides is map &&
-        request.resource.data.custom is list && request.resource.data.custom.size() <= 20;
+      allow create, update: if request.auth != null && (
+        (isPermanentAdminEmail(request.auth.token.email) &&
+          docId == 'ranks' &&
+          request.resource.data.keys().hasOnly(['overrides', 'custom', 'updatedAt']) &&
+          request.resource.data.overrides is map &&
+          request.resource.data.custom is list && request.resource.data.custom.size() <= 20) ||
+        (isAdmin() && docId == 'device' &&
+          request.resource.data.keys().hasOnly(['maxAccounts', 'updatedAt']) &&
+          request.resource.data.maxAccounts is int &&
+          request.resource.data.maxAccounts >= 1 && request.resource.data.maxAccounts <= 999));
       allow delete: if false;
     }
 

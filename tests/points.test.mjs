@@ -89,4 +89,11 @@ t("a ring of 40 fake accounts is bounded by the caps (can't exceed the theoretic
   r.ranked.forEach((m) => assert.ok(m.points <= max));
   console.log("   ring member points:", r.ranked[0].points, "| absolute per-account ceiling:", max);
 });
+t("an admin-given custom rank id is kept; junk rank values are ignored", () => {
+  const us = [{ id: "A", name: "A", rank: "c_legend1" }, { id: "B", name: "B", rank: "c_x" }, { id: "C", name: "C", rank: "<b>hax</b>" }, { id: "D", name: "D", rank: "gold" }];
+  const r = computeStats({ users: us, items: [] }, NOW);
+  const ar = (id) => (r.ranked.find((m) => m.uid === id) || {}).assignedRank;
+  assert.equal(ar("A"), "c_legend1"); assert.equal(ar("D"), "gold");
+  assert.equal(ar("B"), undefined); assert.equal(ar("C"), undefined);
+});
 console.log(`\n${n} tests passed`);

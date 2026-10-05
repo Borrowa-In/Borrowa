@@ -16,7 +16,9 @@
 //   * Every category is capped, so one account has a hard ceiling on points.
 //   * Anything involving a banned account stops counting, so banning a fake
 //     ring also removes the points they handed each other.
-export const RANK_KEYS = ["none", "bronze", "silver", "gold", "platinum", "diamond"];
+export const RANK_KEYS = ["none", "bronze", "silver", "gold", "platinum", "diamond", "moderator"];
+// Ranks the main admin creates in the admin console have ids like "c_a1b2c3" (see js/rank-style.js).
+const CUSTOM_RANK_ID = /^c_[a-z0-9]{2,16}$/;
 
 export const CAPS = { lent: 5, requests: 5, lentOut: 20, borrowed: 20, helped: 20 };
 export const POINTS = { lend: 2, lentOut: 8, borrow: 8, helped: 6, requestFulfilled: 3, request: 1 };
@@ -64,7 +66,7 @@ export function computeStats({ items = [], requests = [], users = [] }, now = Da
     const m = get(u.id);
     if (m) {
       m.name = u.name || (u.email || "").split("@")[0] || "";
-      m.assignedRank = RANK_KEYS.includes(u.rank) ? u.rank : null;
+      m.assignedRank = (RANK_KEYS.includes(u.rank) || CUSTOM_RANK_ID.test(String(u.rank || ""))) ? u.rank : null;
     }
   });
   const banned = new Set(users.filter((u) => u.banned).map((u) => u.id));

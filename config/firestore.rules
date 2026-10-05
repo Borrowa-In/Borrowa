@@ -22,6 +22,15 @@ service cloud.firestore {
       );
     }
 
+    // A moderator is a member whose `rank` is 'moderator'. Only admins can write `rank` (see the
+    // users rules), so nobody can promote themselves. Moderators get NO other powers: the only extra
+    // thing they can do is review reports (see /reports below). Banned members lose it at once.
+    function isModerator() {
+      return request.auth != null && !isBanned() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('rank', '') == 'moderator';
+    }
+
     // Is this uid the permanent admin? Looked up from the private email record.
     function isPermanentAdminUid(uid) {
       return exists(/databases/$(database)/documents/userPrivate/$(uid)) &&
@@ -245,15 +254,18 @@ service cloud.firestore {
         n.get('hasPhoto', false) is bool;
     }
 
-    // Admin-only post colours: up to four plain #rrggbb values. Only checked
-    // when an admin writes them (see the items create rule below).
+    // Admin-only post colours: plain #rrggbb values, plus an optional second background colour
+    // (bg2, which makes a gradient) and a gradient angle (0-360). Only checked when an admin
+    // writes them (see the items create rule below).
     function validPostStyle(st) {
-      return st is map && st.size() <= 4 &&
-        st.keys().hasOnly(['bg', 'border', 'title', 'text']) &&
+      return st is map && st.size() <= 6 &&
+        st.keys().hasOnly(['bg', 'bg2', 'border', 'title', 'text', 'angle']) &&
         (!('bg' in st) || (st.bg is string && st.bg.matches('^#[0-9a-fA-F]{6}$'))) &&
+        (!('bg2' in st) || (st.bg2 is string && st.bg2.matches('^#[0-9a-fA-F]{6}$'))) &&
         (!('border' in st) || (st.border is string && st.border.matches('^#[0-9a-fA-F]{6}$'))) &&
         (!('title' in st) || (st.title is string && st.title.matches('^#[0-9a-fA-F]{6}$'))) &&
-        (!('text' in st) || (st.text is string && st.text.matches('^#[0-9a-fA-F]{6}$')));
+        (!('text' in st) || (st.text is string && st.text.matches('^#[0-9a-fA-F]{6}$'))) &&
+        (!('angle' in st) || (st.angle is int && st.angle >= 0 && st.angle <= 360));
     }
 
     // The lender confirming a return. `completedBy` is the list of
@@ -519,7 +531,7 @@ service cloud.firestore {
     }
 
     // ---------- reports/{id} ----------
-    // Any verified member can file a report about only admins read/resolve.
+    // Any verified member can file a report. Admins read/resolve; moderators only review (below).
     match /reports/{id} {
       allow create: if request.auth != null && !isBanned() &&
         request.resource.data.keys().hasOnly(['kind', 'targetId', 'reason', 'details', 'reporterId', 'status', 'createdAt', 'chatId', 'chatKey']) &&
@@ -538,6 +550,30 @@ service cloud.firestore {
             request.resource.data.targetId != request.auth.uid)
         );
       allow read, update, delete: if isAdmin();
+
+      // MODERATORS (review only). They can read reports that are still open, plus the ones they
+      // checked themselves, and only for listings / requests / members. Chat reports are never
+      // visible to moderators: the reporter shared that conversation with admins only.
+      allow read: if isModerator() && (
+        (resource.data.status == 'open' && resource.data.kind in ['item', 'user', 'request']) ||
+        resource.data.modBy == request.auth.uid);
+
+      // The ONLY thing a moderator can change: mark an open report as checked, with a verdict
+      // ('violation' or 'false') and an optional short note. Nothing else on the report, no
+      // deleting, and never a report they filed or one that is about themselves.
+      allow update: if isModerator() &&
+        resource.data.status == 'open' &&
+        resource.data.kind in ['item', 'user', 'request'] &&
+        resource.data.reporterId != request.auth.uid &&
+        resource.data.targetId != request.auth.uid &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'modVerdict', 'modNote', 'modBy', 'modByName', 'modAt']) &&
+        request.resource.data.status == 'checked' &&
+        request.resource.data.modVerdict in ['violation', 'false'] &&
+        request.resource.data.get('modNote', '') is string && request.resource.data.get('modNote', '').size() <= 200 &&
+        request.resource.data.modBy == request.auth.uid &&
+        request.resource.data.modByName is string && request.resource.data.modByName.size() <= 60 &&
+        request.resource.data.modAt == request.time;
     }
 
     // ---------- leaderboard/{doc} ----------
@@ -548,6 +584,21 @@ service cloud.firestore {
     match /leaderboard/{docId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // ---------- siteConfig/ranks ----------
+    // Rank styles chosen by the MAIN admin: gradient colours for the built-in ranks and any
+    // custom ranks (name, icon, colours, optional points needed). Everyone can read it (the
+    // badges are shown on public pages); only the permanent admin can write it, and it can
+    // never be deleted. The app re-cleans every colour / name it reads back.
+    match /siteConfig/{docId} {
+      allow read: if true;
+      allow create, update: if request.auth != null && isPermanentAdminEmail(request.auth.token.email) &&
+        docId == 'ranks' &&
+        request.resource.data.keys().hasOnly(['overrides', 'custom', 'updatedAt']) &&
+        request.resource.data.overrides is map &&
+        request.resource.data.custom is list && request.resource.data.custom.size() <= 20;
+      allow delete: if false;
     }
 
     // ---------- pushTokens/{token} ----------

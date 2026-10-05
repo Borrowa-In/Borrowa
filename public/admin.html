@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://www.google.com/recaptcha/ https://www.recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://firebasestorage.googleapis.com; connect-src 'self' https://*.googleapis.com https://*.cloudfunctions.net https://*.run.app https://*.firebaseio.com wss://*.firebaseio.com https://api.ipify.org https://api64.ipify.org; frame-src https://*.firebaseapp.com https://www.google.com/recaptcha/ https://recaptcha.google.com; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="author" content="Shourya(Shadow)" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Admin Control Center — Borrowa</title>
 <link rel="manifest" href="manifest.webmanifest" />
@@ -296,6 +297,8 @@
     <button class="tab-btn" data-tab="users-tab">Manage Users & Admins</button>
     <button class="tab-btn" data-tab="requests-tab">Borrow Requests <span id="requests-count"></span></button>
     <button class="tab-btn" data-tab="reports-tab">Reports <span id="reports-count"></span></button>
+    <button class="tab-btn" data-tab="modreports-tab">🛡️ Moderator checked <span id="modreports-count"></span></button>
+    <button class="tab-btn" data-tab="ranks-tab" id="ranks-tab-btn" hidden>🏅 Ranks</button>
   </div>
 
   <!-- Listings Control Section -->
@@ -388,6 +391,31 @@
         <thead><tr><th>Reports</th><th>Reported</th><th>Reasons</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="admin-reports-body"></tbody>
       </table>
+    </div>
+  </div>
+
+  <div id="modreports-tab" class="admin-tab-content" style="display:none;">
+    <div class="section-header-flex">
+      <h2>Checked by moderators</h2>
+    </div>
+    <p style="font-size:.88rem;color:#4b5563;margin:0 0 12px;">Moderators only review: they mark a report as a <b>violation</b> or a <b>false report</b> and add a note. You decide what happens. Reports about conversations don't come here: they stay in <b>Reports</b> and are for admins only.</p>
+    <div class="table-responsive">
+      <table class="admin-table">
+        <thead><tr><th>Reports</th><th>Reported</th><th>Moderator's verdict</th><th>Reasons</th><th>Actions</th></tr></thead>
+        <tbody id="admin-modreports-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Ranks & gradients: main admin only (the tab button stays hidden for other admins) -->
+  <div id="ranks-tab" class="admin-tab-content" style="display:none;">
+    <div class="section-header-flex">
+      <h2>Ranks &amp; gradient colours</h2>
+    </div>
+    <p class="rk-note">Give any rank a gradient, or make your own. Pick a rank on the left and design it on the right, right here on the page. Give a custom rank to a member from <b>Manage Users &amp; Admins</b> (the Rank drop-down). If you set “points needed” a custom rank is also earned automatically.</p>
+    <div class="rk-layout">
+      <div class="rk-list" id="rk-list"></div>
+      <div class="rk-editor" id="rk-editor"><div class="rk-empty">Choose a rank to edit, or press <b>＋ New custom rank</b>.</div></div>
     </div>
   </div>
 </main>
@@ -486,6 +514,10 @@
 <script type="module" src="js/admin.js"></script>
 <script type="module" src="js/admin-reports.js"></script>
 <script type="module" src="js/admin-requests.js"></script>
+<script type="module" src="js/admin-modreports.js"></script>
+<script type="module" src="js/admin-ranks.js"></script>
 <script src="js/prefetch.js" defer></script>
+<!-- Shourya(Shadow) -->
+<div class="sw-mark" aria-hidden="true" data-author="Shourya(Shadow)">Shourya(Shadow)</div>
 </body>
 </html>

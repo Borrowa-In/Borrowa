@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 360" role="img" focusable="false" preserveAspectRatio="xMaxYMax meet">
+  <!-- campus building -->
+  <rect x="372" y="150" width="144" height="210" fill="#f3dcc0"/>
+  <path d="M362 152 L444 88 L526 152 Z" fill="#e2c29b"/>
+  <circle cx="444" cy="126" r="15" fill="#fff" stroke="#c9a57a" stroke-width="3"/>
+  <path d="M444 116 V126 H452" fill="none" stroke="#7a5a3a" stroke-width="3" stroke-linecap="round"/>
+  <rect x="384" y="162" width="14" height="198" fill="#fbeedb"/><rect x="418" y="162" width="14" height="198" fill="#fbeedb"/>
+  <rect x="456" y="162" width="14" height="198" fill="#fbeedb"/><rect x="490" y="162" width="14" height="198" fill="#fbeedb"/>
+  <path d="M432 360 V300 Q444 284 456 300 V360 Z" fill="#c9733d"/>
+  <!-- tree -->
+  <g transform="translate(26 0)">
+  <rect x="36" y="236" width="12" height="124" rx="4" fill="#9a6b45"/>
+  <circle cx="42" cy="206" r="40" fill="#2f8a4c"/><circle cx="14" cy="232" r="26" fill="#3f9d5b"/><circle cx="70" cy="230" r="28" fill="#56b574"/>
+    </g>
+  <!-- grass -->
+  <rect x="0" y="346" width="520" height="14" fill="#bfe3c9"/>
+  <!-- student 1: backpack, hoodie, books -->
+  <path d="M104 360 Q96 250 146 240 L158 244 L158 360 Z" fill="#1f8a47"/>
+  <path d="M96 360 Q96 238 152 226 H214 Q268 238 268 360 Z" fill="#e8863f"/>
+  <path d="M158 226 L183 256 L208 226 Z" fill="#c9692a"/>
+  <path d="M150 234 Q146 290 152 330" fill="none" stroke="#14632f" stroke-width="7" stroke-linecap="round"/>
+  <path d="M216 234 Q222 290 214 330" fill="none" stroke="#14632f" stroke-width="7" stroke-linecap="round"/>
+  <rect x="170" y="204" width="26" height="26" rx="8" fill="#f1c4a0"/>
+  <circle cx="205" cy="116" r="17" fill="#2b1d16"/>
+  <ellipse cx="183" cy="172" rx="36" ry="42" fill="#f1c4a0"/>
+  <path d="M146 176 Q140 120 184 120 Q228 120 221 176 Q214 146 184 146 Q156 148 146 176 Z" fill="#2b1d16"/>
+  <circle cx="170" cy="177" r="2.8" fill="#3b2a20"/><circle cx="197" cy="177" r="2.8" fill="#3b2a20"/>
+  <path d="M168 192 Q183 207 199 192" fill="none" stroke="#a5513a" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="160" cy="190" r="6" fill="#f3a58e" opacity=".55"/><circle cx="207" cy="190" r="6" fill="#f3a58e" opacity=".55"/>
+  <path d="M244 244 Q286 240 306 266 L292 286 Q272 266 246 272 Z" fill="#e8863f"/>
+  <!-- book stack -->
+  <rect x="262" y="290" width="62" height="12" rx="2" fill="#2563eb"/>
+  <rect x="266" y="278" width="56" height="12" rx="2" fill="#dc2626"/>
+  <rect x="260" y="266" width="60" height="12" rx="2" fill="#f59e0b"/>
+  <circle cx="296" cy="276" r="12" fill="#f1c4a0"/>
+  <!-- student 2: graduation cap, hoodie, laptop -->
+  <path d="M300 360 Q304 244 356 234 H412 Q466 244 466 360 Z" fill="#6f8fae"/>
+  <path d="M362 234 L386 266 L410 234 Z" fill="#587995"/>
+  <rect x="374" y="210" width="26" height="26" rx="8" fill="#8a5a3a"/>
+  <ellipse cx="387" cy="180" rx="34" ry="40" fill="#8a5a3a"/>
+  <path d="M353 172 Q351 130 388 128 Q422 130 421 172 Q412 148 387 148 Q362 148 353 172 Z" fill="#1c1917"/>
+  <circle cx="375" cy="176" r="2.8" fill="#120d0a"/><circle cx="400" cy="176" r="2.8" fill="#120d0a"/>
+  <path d="M374 192 Q387 204 400 192" fill="none" stroke="#3b1d10" stroke-width="3" stroke-linecap="round"/>
+  <rect x="368" y="130" width="38" height="14" rx="3" fill="#111827"/>
+  <path d="M346 130 L387 112 L428 130 L387 148 Z" fill="#1f2937"/>
+  <path d="M428 130 V158" stroke="#f59e0b" stroke-width="3" stroke-linecap="round"/><circle cx="428" cy="161" r="4" fill="#f59e0b"/>
+  <path d="M352 250 Q326 252 320 276 L334 288 Q342 270 360 270 Z" fill="#6f8fae"/>
+  <!-- laptop -->
+  <rect x="318" y="268" width="46" height="30" rx="4" fill="#9ca3af"/>
+  <rect x="322" y="272" width="38" height="22" rx="2" fill="#e5e7eb"/>
+  <circle cx="341" cy="283" r="5" fill="#1f8a47"/>
+  <circle cx="330" cy="288" r="11" fill="#8a5a3a"/>
+</svg>

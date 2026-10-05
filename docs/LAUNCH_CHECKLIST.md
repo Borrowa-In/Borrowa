@@ -64,3 +64,12 @@ Appeals form (admins now review reports in the Reports tab), phone OTP, photo mo
 
 ## Phone alerts WITHOUT a paid plan
 Use the free GitHub Actions sender: follow `docs/FREE_PUSH.md` (skip the Blaze/Cloud Functions steps above).
+
+
+## Ranks & gradients
+Publish `config/firestore.rules` again (Firestore -> Rules) so `siteConfig/ranks` and gradient post colours are accepted. Then sign in as the main admin -> Admin console -> "Ranks" tab.
+
+
+## Moderators
+- Republish `config/firestore.rules` before using the moderator page (it needs `isModerator()`).
+- Admin > Manage Users & Admins > "Make Moderator". Moderators see a "Moderation" link; checked reports appear in Admin > "Moderator checked".

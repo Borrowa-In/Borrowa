@@ -35,4 +35,12 @@ function readNavCache() {
     a.style.cssText = "color: #14632f; text-decoration: none; font-weight: 650; background: #d3f5df; padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center;";
     links.appendChild(a);
   }
+  if (c.mod && links && !document.getElementById("nav-moderator-btn")) {
+    const m = document.createElement("a");
+    m.id = "nav-moderator-btn";
+    m.href = "moderator.html";
+    m.textContent = "Moderation";
+    m.style.cssText = "color: #fff; text-decoration: none; font-weight: 650; background: linear-gradient(135deg,#3730a3,#0e7490); padding: 6px 12px; border-radius: 6px; display: inline-flex; align-items: center;";
+    links.appendChild(m);
+  }
 })();

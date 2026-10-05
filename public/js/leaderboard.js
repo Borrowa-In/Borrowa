@@ -41,8 +41,8 @@ function renderTierLegend() {
   el.innerHTML = TIERS.filter((t) => t.key !== "none").map((t) =>
     `<div style="background:${t.card};border:1px solid ${t.border};box-shadow:${t.glow};border-radius:12px;padding:12px 14px;text-align:center;">
        <div style="font-size:22px;">${t.icon}</div>
-       <div style="font-weight:700;color:${t.color};font-size:13px;">${t.name}</div>
-       <div style="font-size:11px;color:#6b7280;">${t.min}+ pts</div>
+       <div style="font-weight:700;color:${t.accent};font-size:13px;">${t.name}</div>
+       <div style="font-size:11px;color:#6b7280;">${Number.isFinite(t.min) ? t.min + "+ pts" : "Given by admins"}</div>
      </div>`).join("");
 }
 
@@ -58,7 +58,7 @@ function podiumCard(m, place) {
         <div style="width:44px;height:44px;border-radius:50%;background:${t.bg};color:${t.color};border:2px solid ${t.border};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;">${escapeHtml(m.name.trim().charAt(0).toUpperCase() || "?")}</div>
         <div style="font-weight:700;color:#0e1a12;font-size:14px;word-break:break-word;">${escapeHtml(m.name)}${isMe ? " (you)" : ""}</div>
         ${tierBadgeHtml(t, true)}
-        <div style="font-weight:800;color:${t.color};font-size:18px;">${m.points} pts</div>
+        <div style="font-weight:800;color:${t.accent};font-size:18px;">${m.points} pts</div>
       </div>
     </div>`;
 }
@@ -80,17 +80,17 @@ function myRankCard(ranked) {
           <div style="font-size:40px;line-height:1;">${t.icon}</div>
           <div>
             <div style="font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.04em;font-weight:600;">Your rank</div>
-            <div style="font-size:22px;font-weight:800;color:${t.color};">${t.name}${me ? ` · #${idx + 1}` : ""}</div>
+            <div style="font-size:22px;font-weight:800;color:${t.accent};">${t.name}${me ? ` · #${idx + 1}` : ""}</div>
             ${me && me.assignedRank ? `<div style="font-size:11px;color:#6b7280;">Awarded by an admin</div>` : ""}
           </div>
         </div>
         <div style="text-align:right;">
-          <div style="font-size:28px;font-weight:800;color:${t.color};">${pts} pts</div>
+          <div style="font-size:28px;font-weight:800;color:${t.accent};">${pts} pts</div>
           ${me ? `<div style="font-size:12px;color:#6b7280;">${me.lent} lent · ${me.borrowed} borrowed · ${me.offers} helped</div>` : ""}
         </div>
       </div>
       <div style="margin-top:14px;height:10px;background:rgba(0,0,0,.07);border-radius:999px;overflow:hidden;">
-        <div style="height:100%;width:${pct}%;background:${t.color};border-radius:999px;transition:width .6s;"></div>
+        <div style="height:100%;width:${pct}%;background:${t.accent};border-radius:999px;transition:width .6s;"></div>
       </div>
       <div style="font-size:12px;color:#4b5563;margin-top:6px;">
         ${nt ? `${Math.max(0, nt.min - pts)} more points to reach <b>${nt.icon} ${nt.name}</b>` : "You've reached the top tier. Legend!"}
@@ -152,7 +152,7 @@ function render({ ranked, totals }) {
         <div style="text-align:center;">${m.lent}</div>
         <div style="text-align:center;">${m.borrowed}</div>
         <div style="text-align:center;" title="Offers to lend on requests">${m.offers}</div>
-        <div style="text-align: right; font-weight: 700; color: ${t.color};">${m.points} pts</div>
+        <div style="text-align: right; font-weight: 700; color: ${t.accent};">${m.points} pts</div>
       </div>`;
   });
 

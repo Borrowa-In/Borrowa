@@ -38,6 +38,14 @@ Also done this session:
 - Cross-checked field names between client, rules and functions (userId, participants, senderId, offerCount, recipientId, `chat.html?id=`): all match. `functions/points.js` is in sync with `public/js/points.js`.
 - `npm test` now runs all four suites.
 
+## Gradient post styles + custom ranks (main admin)
+- Admin post style: the Lend form's colour boxes are replaced by an INLINE colour studio (`js/color-studio.js`: quick gradients, swatches, hue/strength/light sliders, hex box, gradient angle). No browser colour pop-up anywhere. Post colours can now be a gradient: `postStyle` gained `bg2` and `angle` (rules: `validPostStyle`).
+- Ranks tab in `admin.html` (`js/admin-ranks.js`, main admin only): give any built-in rank (and the Admin badge) a gradient, or create custom ranks (name, icon, colours, optional points needed). Stored in ONE doc `siteConfig/ranks` (read by all, written only by the permanent admin; rules in `firestore.rules`). `js/ranks.js` applies it in place to `TIERS` (cached 5 min per tab); `js/rank-style.js` holds the pure, tested colour/sanitising helpers.
+- A custom rank with no points is only given by admins via the existing Rank drop-down in "Manage Users & Admins" (`users.rank = "c_xxxxxx"`; `points.js` accepts that id pattern; `functions/points.js` kept in sync). Deleting a custom rank sends its holders back to their points rank.
+- MUST republish `config/firestore.rules` (new `siteConfig` block + gradient fields) or saving ranks / gradient posts is refused. `config/firestore.dev.rules` regenerated.
+- Tests: `tests/rank-style.test.mjs` (+1 case in `tests/points.test.mjs`). Playwright (Firebase stubbed) checked the studio, the Ranks tab create/validate/save/delete/reset flow, gradient admin card, custom + restyled badges, at 390 and 1300 px. NOT checked against real Firestore rules.
+- Also: `device.js` "Couldn't register this device" now shows the Firebase error code (e.g. permission-denied = rules not published).
+
 ## Visual redesign (matches the mockup; no logic changed)
 - White top bar with round logo, centred links, green pill buttons; warm peach hero; dark stat cards with green numbers; rounded item cards; "How Borrowa Works" + Lend/Borrow panel. Styles are the last block of `css/style.css` ("Borrowa light redesign").
 - No photos: hero people, step icons and item pictures are inline SVG (`public/js/art.js` picks a picture from the item title/category). `main.js` only gained one import and one template line (`${itemArtHtml(item)}`).
@@ -64,3 +72,14 @@ Real push delivery (needs the Firebase project, Blaze, VAPID key, real phones) a
 - Pushing to a closed phone needs a server: Cloud Functions, so Firebase Blaze plan (card required; cost ~0 at this scale).
 - iPhone: only works after "Add to Home Screen" (iOS 16.4+). Android Chrome works in the browser.
 - Cannot be tested without the real Firebase project and real phones.
+
+
+## Moderator rank + report review
+- Rank: `moderator` is a built-in manual rank (`js/ranks.js`, `min: null`, shield icon, indigo-to-teal gradient). The main admin can restyle it in the Ranks tab like any other rank. Given from "Manage Users & Admins" (new Make / Remove Moderator button, or the Rank drop-down). It is stored as `users.rank = "moderator"`, which only admins can write.
+- Permission: `isModerator()` in `config/firestore.rules` reads that same `users.rank`, so the name tag and the permission can never disagree. Moderators can only (a) read OPEN reports about listings / requests / members, plus ones they checked themselves, and (b) update an open report to `status: "checked"` with `modVerdict` (`violation` | `false`), optional `modNote`, `modBy`, `modByName`, `modAt`. No delete, no other fields, never a report they filed or one about themselves. Banned moderators lose it at once.
+- Chat reports are NOT visible to moderators: the reporter shares that chat key with admins only (see `js/chat-report.js`).
+- Moderator page: `moderator.html` + `js/moderator.js` ("To review" / "My reviews", Violation / False report buttons + note). Nav link "Moderation" is added in `main.js` / `nav-cache.js` for moderators.
+- Admin: new "Moderator checked" tab (`js/admin-modreports.js`) lists `status == "checked"` reports with the verdict, who checked, and the note. Admin can delete listing/request, ban, dismiss, Reopen (back to open) or Clear. The main Reports tab only shows `open`, so checked reports move out of it.
+- Chat: `nameTagHtml()` / `nameCardHtml()` in `js/ranks.js` draw the other person's name on their rank background (list, header namecard, above each run of their messages). CSS: last block of `css/style.css`.
+- MUST republish `config/firestore.rules` (new `isModerator()` + report rules). `config/firestore.dev.rules` regenerated. `functions/points.js` RANK_KEYS edited by hand to match `public/js/points.js`.
+- Tests: `tests/moderator.test.mjs` (rank keys in sync, rules text checks). Playwright with Firebase stubbed checked chat tags, moderator page flow and the admin tab. NOT run against real Firestore rules.

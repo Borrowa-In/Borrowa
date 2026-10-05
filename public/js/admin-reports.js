@@ -116,6 +116,7 @@ body.addEventListener("click", async (e) => {
 });
 
 showAll.addEventListener("change", load);
+document.addEventListener("borrowa-reports-changed", load);   // e.g. an admin reopened a moderator-checked report
 onAuthStateChanged(auth, (u) => { if (u) load(); });
 
 // Decrypts the real stored messages with the key the reporter chose to share.

@@ -80,7 +80,10 @@ export async function bindDevice(user) {
     await updateDoc(ref, { uids: arrayUnion(user.uid), [emailPath]: myEmail });
   } catch (e) {
     if (e.code === "device-banned" || e.code === "device-taken") throw e;
-    throw fail("device-taken", "Couldn't register this device. Please try again.");
+    // Say WHY (e.g. "permission-denied" means the latest firestore.rules are not published yet).
+    console.error("Device registration failed:", e);
+    const why = e && e.code ? ` (${String(e.code).replace(/[^a-z-]/gi, "").slice(0, 40)})` : "";
+    throw fail("device-taken", `Couldn't register this device${why}. Please try again.`);
   }
 }
 
